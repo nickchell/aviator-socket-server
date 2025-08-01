@@ -63,6 +63,38 @@ const authenticateRequest = (req, res, next) => {
   next();
 };
 
+// Root endpoint for uptime monitoring (must be first)
+app.get('/', (req, res) => {
+  const response = { 
+    status: 'ok', 
+    service: 'aviator-socket-server',
+    timestamp: new Date().toISOString()
+  };
+  res.setHeader('Content-Type', 'application/json');
+  res.status(200).json(response);
+});
+
+// Simple text endpoint for basic uptime monitoring
+app.get('/ping', (req, res) => {
+  res.status(200).send('pong');
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  const timeBasedRound = getCurrentRound();
+  const roundMultiplier = getMultiplierForRound(currentRound);
+  res.json({ 
+    status: 'healthy', 
+    gamePhase, 
+    currentRound, 
+    timeBasedRound,
+    roundDifference: currentRound - timeBasedRound,
+    queueSize: multiplierQueue.length,
+    currentMultiplier: gamePhase === 'flying' ? currentMultiplier : roundMultiplier,
+    nextMultiplier: multiplierQueue.length > 0 ? multiplierQueue[0] : null
+  });
+});
+
 // Queue endpoint for receiving multipliers from backend
 app.post('/queue', authenticateRequest, (req, res) => {
   const { multipliers, startRound } = req.body;
@@ -129,22 +161,6 @@ app.post('/queue', authenticateRequest, (req, res) => {
   }
   
   res.json({ success: true, queueSize: multiplierQueue.length });
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  const timeBasedRound = getCurrentRound();
-  const roundMultiplier = getMultiplierForRound(currentRound);
-  res.json({ 
-    status: 'healthy', 
-    gamePhase, 
-    currentRound, 
-    timeBasedRound,
-    roundDifference: currentRound - timeBasedRound,
-    queueSize: multiplierQueue.length,
-    currentMultiplier: gamePhase === 'flying' ? currentMultiplier : roundMultiplier,
-    nextMultiplier: multiplierQueue.length > 0 ? multiplierQueue[0] : null
-  });
 });
 
 // Debug endpoint to show current state
@@ -516,6 +532,15 @@ process.on('SIGINT', () => {
   server.close(() => {
     console.log('✅ Socket server closed');
     process.exit(0);
+  });
+});
+
+// Catch-all route for 404s (must be last)
+app.use('*', (req, res) => {
+  res.status(404).json({ 
+    error: 'Not Found', 
+    message: 'Endpoint not found',
+    availableEndpoints: ['/', '/ping', '/health', '/debug', '/current-state', '/queue']
   });
 });
 
