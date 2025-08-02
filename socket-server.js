@@ -342,17 +342,37 @@ function startFlyingPhase() {
   const startTime = Date.now();
   const timeToCrash = estimateTimeToMultiplier(crashPoint);
   
-  // Start multiplier animation with smooth behavior
+  // Start multiplier animation with unpredictable behavior
   simulationInterval = setInterval(() => {
     // Calculate elapsed time since flying phase started
     const elapsedMs = Date.now() - startTime;
     const elapsedSec = elapsedMs / 1000;
     
-    // Calculate progress (0 to 1)
-    const progress = Math.min(1, elapsedSec / timeToCrash);
+    // Add random time variations for unpredictability
+    const timeVariation = (Math.random() - 0.5) * 0.5; // ±0.25 seconds
+    const adjustedElapsedSec = elapsedSec + timeVariation;
+    
+    // Calculate progress (0 to 1) with random adjustments
+    let progress = Math.min(1, adjustedElapsedSec / timeToCrash);
+    
+    // Add random progress stalls and surges
+    if (Math.random() < 0.12) {
+      // 12% chance of a progress stall
+      progress *= 0.5 + Math.random() * 0.5;
+    }
+    
+    if (Math.random() < 0.06) {
+      // 6% chance of a progress surge
+      progress *= 1.2 + Math.random() * 0.4;
+    }
     
     // Calculate current multiplier
     currentMultiplier = calculateMultiplier(progress, crashPoint);
+    
+    // Randomly skip some updates to create unpredictability
+    if (Math.random() < 0.1) {
+      return; // Skip this update (10% chance)
+    }
     
     // Debug: Log only significant multiplier changes (less frequent)
     if (currentMultiplier >= 2.0 || (Math.abs(currentMultiplier - crashPoint) < 0.05 && currentMultiplier > 1.5)) {
@@ -365,12 +385,12 @@ function startFlyingPhase() {
       multiplier: currentMultiplier
     });
     
-    // Check if crashed
-    if (currentMultiplier >= crashPoint) {
+    // Check if crashed with some randomness
+    if (currentMultiplier >= crashPoint || (Math.random() < 0.01 && progress > 0.95)) {
       console.log(`🎯 Animation complete: reached ${currentMultiplier}x (target was ${crashPoint}x)`);
       crashRound();
     }
-  }, MULTIPLIER_UPDATE_INTERVAL);
+  }, MULTIPLIER_UPDATE_INTERVAL + Math.random() * 50); // Variable update interval
 }
 
 function crashRound() {
@@ -402,29 +422,32 @@ function crashRound() {
 
 // Utility functions
 function estimateTimeToMultiplier(target) {
-  // Slower exponential animation timing for better pacing
-  // Uses logarithmic scaling to maintain consistent feel across all ranges
+  // Highly unpredictable timing with significant variation
+  // Uses random scaling to make each animation unique
+  
+  // Base time with high randomness
+  const baseRandomness = Math.random() * 4 + 2; // 2-6 seconds base randomness
   
   if (target < 1.5) {
-    // Short-range multipliers: Slower but still engaging
-    return 5.0 + Math.random() * 1.5; // 5-6.5 seconds
+    // Short-range multipliers: Highly variable timing
+    return 3.0 + Math.random() * 3.0 + baseRandomness; // 5-12 seconds
   } else if (target < 2.5) {
-    // Low mid-range: Steady, readable rise
-    return 6.0 + Math.random() * 2.0; // 6-8 seconds
+    // Low mid-range: Unpredictable timing
+    return 4.0 + Math.random() * 4.0 + baseRandomness; // 6-14 seconds
   } else if (target < 5.0) {
-    // Mid-range: Medium-paced with natural acceleration
-    return 7.0 + Math.random() * 2.5; // 7-9.5 seconds
+    // Mid-range: Very variable timing
+    return 5.0 + Math.random() * 5.0 + baseRandomness; // 7-16 seconds
   } else if (target < 15.0) {
-    // High range: Smooth controlled acceleration
-    return 8.0 + Math.random() * 3.0; // 8-11 seconds
+    // High range: Extremely variable timing
+    return 6.0 + Math.random() * 6.0 + baseRandomness; // 8-18 seconds
   } else {
-    // Very high: Epic tension without overwhelming speed
-    return 10.0 + Math.random() * 3.5; // 10-13.5 seconds
+    // Very high: Maximum unpredictability
+    return 8.0 + Math.random() * 8.0 + baseRandomness; // 10-22 seconds
   }
 }
 
 function calculateMultiplier(progress, target) {
-  // Exponential multiplier animation with natural decimal progression
+  // Unpredictable multiplier animation with high randomness
   // M(t) = e^(k * t) where k = ln(crash_multiplier) / T
   
   const startValue = 1.00;
@@ -435,41 +458,58 @@ function calculateMultiplier(progress, target) {
   // Apply exponential function: M(t) = e^(k * progress)
   let multiplier = Math.exp(k * progress);
   
-  // Apply easing for natural tension ramping and smoother decimal progression
-  let easedProgress = progress;
+  // Add significant randomness to progress
+  let randomizedProgress = progress;
   
-  if (target < 1.5) {
-    // Short-range: Smoother ease-out for natural decimal movement
-    easedProgress = 1 - Math.pow(1 - progress, 1.05);
-  } else if (target < 2.5) {
-    // Low mid-range: Natural ease-out
-    easedProgress = 1 - Math.pow(1 - progress, 1.1);
-  } else if (target < 5.0) {
-    // Mid-range: Balanced ease-out for steady rise
-    easedProgress = 1 - Math.pow(1 - progress, 1.15);
-  } else if (target < 15.0) {
-    // High range: Strong ease-out for controlled acceleration
-    easedProgress = 1 - Math.pow(1 - progress, 1.2);
-  } else {
-    // Very high: Maximum ease-out for epic tension
-    easedProgress = 1 - Math.pow(1 - progress, 1.25);
+  // Random easing selection for unpredictability
+  const easingFunctions = [
+    () => 1 - Math.pow(1 - progress, 0.8),  // Very fast start
+    () => 1 - Math.pow(1 - progress, 1.0),  // Linear
+    () => 1 - Math.pow(1 - progress, 1.2),  // Slight ease-out
+    () => 1 - Math.pow(1 - progress, 1.5),  // Strong ease-out
+    () => 1 - Math.pow(1 - progress, 2.0),  // Very strong ease-out
+    () => Math.sin(progress * Math.PI * 0.5), // Sine curve
+    () => progress * progress, // Quadratic
+    () => Math.pow(progress, 3), // Cubic
+  ];
+  
+  // Randomly select easing function
+  const selectedEasing = easingFunctions[Math.floor(Math.random() * easingFunctions.length)];
+  randomizedProgress = selectedEasing();
+  
+  // Add random stalls and accelerations
+  if (Math.random() < 0.15) {
+    // 15% chance of a random stall
+    randomizedProgress *= 0.6 + Math.random() * 0.4;
   }
   
-  // Recalculate with eased progress
-  multiplier = Math.exp(k * easedProgress);
+  if (Math.random() < 0.08) {
+    // 8% chance of a random acceleration
+    randomizedProgress *= 1.1 + Math.random() * 0.3;
+  }
   
-  // Add very subtle micro-variations for natural decimal movement
-  const microVariation = Math.sin(progress * Math.PI * 2) * 0.0008;
-  const tensionVariation = Math.sin(progress * Math.PI * 5) * 0.0003;
-  const decimalVariation = Math.sin(progress * Math.PI * 11) * 0.0002;
+  // Recalculate with randomized progress
+  multiplier = Math.exp(k * randomizedProgress);
   
-  multiplier += microVariation + tensionVariation + decimalVariation;
+  // Add significant random variations
+  const randomFactor1 = (Math.random() - 0.5) * 0.02; // ±1% random variation
+  const randomFactor2 = Math.sin(progress * Math.PI * (3 + Math.random() * 4)) * 0.015; // Variable frequency
+  const randomFactor3 = Math.cos(progress * Math.PI * (2 + Math.random() * 3)) * 0.01; // Variable frequency
+  const microVariation = Math.sin(progress * Math.PI * 7) * 0.005; // High frequency micro-variation
+  const tensionVariation = Math.sin(progress * Math.PI * 13) * 0.003; // Very high frequency
+  
+  multiplier += randomFactor1 + randomFactor2 + randomFactor3 + microVariation + tensionVariation;
+  
+  // Add random spikes (rare but dramatic)
+  if (Math.random() < 0.05) {
+    // 5% chance of a random spike
+    multiplier += (Math.random() * 0.03) * (target - 1.0);
+  }
   
   // Ensure we don't exceed the target
   multiplier = Math.min(multiplier, target);
   
   // Use more precise rounding for natural decimal progression
-  // This ensures the hundredths digit moves smoothly
   return parseFloat(multiplier.toFixed(2));
 }
 
