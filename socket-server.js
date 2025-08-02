@@ -18,7 +18,7 @@ const PORT = process.env.SOCKET_PORT || 3001;
 const SECRET_TOKEN = process.env.SOCKET_SERVER_SECRET || 'your-secret-token';
 const BETTING_PHASE_DURATION = 6000; // 6 seconds
 const WAIT_PHASE_DURATION = 3000; // 3 seconds
-const MULTIPLIER_UPDATE_INTERVAL = 100; // 100ms for smoother updates
+const MULTIPLIER_UPDATE_INTERVAL = 120; // 120ms for smoother, slower updates
 
 // Time-based round calculation (same as backend)
 const ROUND_DURATION = 10000; // 10 seconds per round
@@ -402,73 +402,74 @@ function crashRound() {
 
 // Utility functions
 function estimateTimeToMultiplier(target) {
-  // Exponential animation timing based on multiplier size
+  // Slower exponential animation timing for better pacing
   // Uses logarithmic scaling to maintain consistent feel across all ranges
   
   if (target < 1.5) {
-    // Short-range multipliers: Fast animation to prevent sluggish visuals
-    return 3.0 + Math.random() * 1.0; // 3-4 seconds
+    // Short-range multipliers: Slower but still engaging
+    return 5.0 + Math.random() * 1.5; // 5-6.5 seconds
   } else if (target < 2.5) {
     // Low mid-range: Steady, readable rise
-    return 4.0 + Math.random() * 1.5; // 4-5.5 seconds
+    return 6.0 + Math.random() * 2.0; // 6-8 seconds
   } else if (target < 5.0) {
     // Mid-range: Medium-paced with natural acceleration
-    return 5.0 + Math.random() * 2.0; // 5-7 seconds
+    return 7.0 + Math.random() * 2.5; // 7-9.5 seconds
   } else if (target < 15.0) {
     // High range: Smooth controlled acceleration
-    return 6.0 + Math.random() * 2.5; // 6-8.5 seconds
+    return 8.0 + Math.random() * 3.0; // 8-11 seconds
   } else {
     // Very high: Epic tension without overwhelming speed
-    return 7.0 + Math.random() * 3.0; // 7-10 seconds
+    return 10.0 + Math.random() * 3.5; // 10-13.5 seconds
   }
 }
 
 function calculateMultiplier(progress, target) {
-  // Exponential multiplier animation with smooth exponential rising
+  // Exponential multiplier animation with natural decimal progression
   // M(t) = e^(k * t) where k = ln(crash_multiplier) / T
   
   const startValue = 1.00;
   
   // Calculate the growth constant k based on target and normalized time
-  // k = ln(target) / 1.0 (since we normalize progress to 0-1)
   const k = Math.log(target);
   
   // Apply exponential function: M(t) = e^(k * progress)
   let multiplier = Math.exp(k * progress);
   
-  // Apply easing for natural tension ramping
+  // Apply easing for natural tension ramping and smoother decimal progression
   let easedProgress = progress;
   
   if (target < 1.5) {
-    // Short-range: Fast start with slight ease-out for tension
-    easedProgress = 1 - Math.pow(1 - progress, 1.1);
+    // Short-range: Smoother ease-out for natural decimal movement
+    easedProgress = 1 - Math.pow(1 - progress, 1.05);
   } else if (target < 2.5) {
     // Low mid-range: Natural ease-out
-    easedProgress = 1 - Math.pow(1 - progress, 1.2);
+    easedProgress = 1 - Math.pow(1 - progress, 1.1);
   } else if (target < 5.0) {
     // Mid-range: Balanced ease-out for steady rise
-    easedProgress = 1 - Math.pow(1 - progress, 1.3);
+    easedProgress = 1 - Math.pow(1 - progress, 1.15);
   } else if (target < 15.0) {
     // High range: Strong ease-out for controlled acceleration
-    easedProgress = 1 - Math.pow(1 - progress, 1.4);
+    easedProgress = 1 - Math.pow(1 - progress, 1.2);
   } else {
     // Very high: Maximum ease-out for epic tension
-    easedProgress = 1 - Math.pow(1 - progress, 1.5);
+    easedProgress = 1 - Math.pow(1 - progress, 1.25);
   }
   
   // Recalculate with eased progress
   multiplier = Math.exp(k * easedProgress);
   
-  // Add subtle micro-variations for realism (very small)
-  const microVariation = Math.sin(progress * Math.PI * 3) * 0.001;
-  const tensionVariation = Math.sin(progress * Math.PI * 7) * 0.0005;
+  // Add very subtle micro-variations for natural decimal movement
+  const microVariation = Math.sin(progress * Math.PI * 2) * 0.0008;
+  const tensionVariation = Math.sin(progress * Math.PI * 5) * 0.0003;
+  const decimalVariation = Math.sin(progress * Math.PI * 11) * 0.0002;
   
-  multiplier += microVariation + tensionVariation;
+  multiplier += microVariation + tensionVariation + decimalVariation;
   
   // Ensure we don't exceed the target
   multiplier = Math.min(multiplier, target);
   
-  // Round to 2 decimal places for display
+  // Use more precise rounding for natural decimal progression
+  // This ensures the hundredths digit moves smoothly
   return parseFloat(multiplier.toFixed(2));
 }
 
@@ -512,12 +513,12 @@ function testMultiplierCalculation() {
   
   console.log(`\n🧮 Exponential Features:`);
   console.log(`   • M(t) = e^(k * t) where k = ln(crash_multiplier)`);
-  console.log(`   • Smooth exponential rising with natural acceleration`);
-  console.log(`   • Consistent feel across all crash ranges`);
-  console.log(`   • Easing curves (t^1.1 to t^1.5) for tension ramping`);
-  console.log(`   • Micro-variations for realism (0.1% to 0.05%)`);
+  console.log(`   • Slower, smoother exponential rising with natural acceleration`);
+  console.log(`   • Natural decimal progression for hundredths digit`);
+  console.log(`   • Gentler easing curves (t^1.05 to t^1.25) for smoother movement`);
+  console.log(`   • Micro-variations for natural decimal movement (0.08% to 0.02%)`);
   console.log(`   • Mathematical precision with exact target values`);
-  console.log(`   • Update interval: ${MULTIPLIER_UPDATE_INTERVAL}ms`);
+  console.log(`   • Slower update interval: ${MULTIPLIER_UPDATE_INTERVAL}ms for better pacing`);
   
   return true;
 }
