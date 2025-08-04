@@ -331,35 +331,40 @@ function startFlyingPhase() {
   
   console.log(`⏱️ Animation duration: ${timeToCrash.toFixed(1)} seconds`);
   
-  // Start multiplier animation with smooth, consistent behavior
-  simulationInterval = setInterval(() => {
-    // Calculate elapsed time since flying phase started
-    const elapsedMs = Date.now() - startTime;
-    const elapsedSec = elapsedMs / 1000;
+      // Start multiplier animation with smooth, consistent behavior
+    let lastEmittedMultiplier = 1.00;
     
-    // Calculate progress (0 to 1) - NO random variations for smoothness
-    const progress = Math.min(1, elapsedSec / timeToCrash);
-    
-    // Calculate current multiplier
-    currentMultiplier = calculateMultiplier(progress, crashPoint);
-    
-    // Emit multiplier update (NO random skips for smoothness)
-    io.emit('multiplier:update', {
-      round: currentRound,
-      multiplier: currentMultiplier
-    });
-    
-    // Debug: Log only significant multiplier changes (less frequent)
-    if (currentMultiplier >= 2.0 || (Math.abs(currentMultiplier - crashPoint) < 0.05 && currentMultiplier > 1.5)) {
-      console.log(`📊 ${currentMultiplier.toFixed(2)}x → ${crashPoint.toFixed(2)}x (${(progress * 100).toFixed(0)}%)`);
-    }
-    
-    // Check if crashed (NO randomness for consistency)
-    if (currentMultiplier >= crashPoint) {
-      console.log(`🎯 Animation complete: reached ${currentMultiplier}x (target was ${crashPoint}x)`);
-      crashRound();
-    }
-  }, MULTIPLIER_UPDATE_INTERVAL); // Fixed update interval for smoothness
+    simulationInterval = setInterval(() => {
+      // Calculate elapsed time since flying phase started
+      const elapsedMs = Date.now() - startTime;
+      const elapsedSec = elapsedMs / 1000;
+      
+      // Calculate progress (0 to 1) - NO random variations for smoothness
+      const progress = Math.min(1, elapsedSec / timeToCrash);
+      
+      // Calculate current multiplier
+      currentMultiplier = calculateMultiplier(progress, crashPoint);
+      
+      // Only emit if multiplier has actually changed (prevent duplicate emissions)
+      if (Math.abs(currentMultiplier - lastEmittedMultiplier) >= 0.01) {
+        io.emit('multiplier:update', {
+          round: currentRound,
+          multiplier: currentMultiplier
+        });
+        lastEmittedMultiplier = currentMultiplier;
+      }
+      
+      // Debug: Log only significant multiplier changes (less frequent)
+      if (currentMultiplier >= 2.0 || (Math.abs(currentMultiplier - crashPoint) < 0.05 && currentMultiplier > 1.5)) {
+        console.log(`📊 ${currentMultiplier.toFixed(2)}x → ${crashPoint.toFixed(2)}x (${(progress * 100).toFixed(0)}%)`);
+      }
+      
+      // Check if crashed (NO randomness for consistency)
+      if (currentMultiplier >= crashPoint) {
+        console.log(`🎯 Animation complete: reached ${currentMultiplier}x (target was ${crashPoint}x)`);
+        crashRound();
+      }
+    }, MULTIPLIER_UPDATE_INTERVAL); // Fixed update interval for smoothness
 }
 
 function crashRound() {
@@ -430,8 +435,11 @@ function calculateMultiplier(progress, target) {
   // Calculate smooth multiplier with stepped hundredths
   const smoothMultiplier = startMultiplier + (currentStep / 100);
   
-  // Ensure we don't exceed target
-  return Math.min(smoothMultiplier, target);
+  // Ensure we don't exceed target and fix floating point precision
+  const result = Math.min(smoothMultiplier, target);
+  
+  // Fix floating point precision issues by rounding to 2 decimal places
+  return Math.round(result * 100) / 100;
 }
 
 // Test function to verify advanced exponential multiplier calculation
