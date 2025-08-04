@@ -340,12 +340,12 @@ function startFlyingPhase() {
       const progress = Math.min(1, elapsedSec / acceleratedTime);
       
       // Fast exponential rise for low crashes (using fixed k)
-      const k = 0.25; // Same fixed k-value for consistency
+      const k = 0.2; // Same fixed k-value for consistency (reduced for steadier rise)
       currentMultiplier = Math.exp(k * progress * acceleratedTime);
       
-      // Apply same logistic smoothing
-      const smoothingFactor = 1 / (1 + Math.exp(-5 * (progress - 0.5)));
-      currentMultiplier = 1.0 + (currentMultiplier - 1.0) * smoothingFactor;
+      // Remove sigmoid smoothing for steady rise
+      // const smoothingFactor = 1 / (1 + Math.exp(-5 * (progress - 0.5)));
+      // currentMultiplier = 1.0 + (currentMultiplier - 1.0) * smoothingFactor;
       
       io.emit('multiplier:update', {
         round: currentRound,
@@ -456,7 +456,7 @@ function calculateMultiplier(progress, target) {
   // Use fixed k-value for consistent exponential curve across all rounds
   
   // Fixed k-value for all rounds (logistic-like behavior)
-  const k = 0.25; // Fixed exponential growth rate
+  const k = 0.2; // Fixed exponential growth rate (reduced for steadier rise)
   
   // Calculate time to crash for this target
   const timeToCrash = estimateTimeToMultiplier(target);
@@ -465,16 +465,13 @@ function calculateMultiplier(progress, target) {
   // x(t) = e^(k * t) where t is normalized time
   let multiplier = Math.exp(k * progress * timeToCrash);
   
-  // Add logistic-like smoothing for more natural curve
-  // Smooth the exponential to prevent too fast explosion
-  const smoothingFactor = 1 / (1 + Math.exp(-5 * (progress - 0.5))); // Sigmoid smoothing
-  multiplier = 1.0 + (multiplier - 1.0) * smoothingFactor;
+  // Remove sigmoid smoothing to prevent flickering
+  // multiplier = 1.0 + (multiplier - 1.0) * smoothingFactor;
   
-  // Add very subtle micro-variations for natural decimal movement
-  const microVariation = Math.sin(progress * Math.PI * 2) * 0.002; // Very subtle oscillation
-  const tensionVariation = Math.cos(progress * Math.PI * 1.5) * 0.001; // Very gentle tension
-  
-  multiplier += microVariation + tensionVariation;
+  // Remove all micro-variations for steady rise
+  // const microVariation = Math.sin(progress * Math.PI * 2) * 0.002;
+  // const tensionVariation = Math.cos(progress * Math.PI * 1.5) * 0.001;
+  // multiplier += microVariation + tensionVariation;
   
   // Ensure we don't exceed the target
   multiplier = Math.min(multiplier, target);
@@ -529,13 +526,13 @@ function testMultiplierCalculation() {
   }
   
   console.log(`\n✅ Ideal Curve Design Features:`);
-  console.log(`   • Fixed k = 0.25 for all rounds (consistent exponential curve)`);
-  console.log(`   • x(t) = e^(k * t) with logistic smoothing for natural behavior`);
+  console.log(`   • Fixed k = 0.2 for all rounds (consistent exponential curve)`);
+  console.log(`   • x(t) = e^(k * t) with pure exponential for steady rise`);
   console.log(`   • Realistic timing: 1.1x-1.5x (3-6.5s), 2x-5x (5-9.5s), 10x (8.5-15.5s), 100x (13.5-23.5s)`);
   console.log(`   • Accelerated crashes: <1.3x use 1-2.5s with same fixed k`);
-  console.log(`   • Logistic smoothing: 1/(1 + e^(-5*(t-0.5))) prevents explosion`);
+  console.log(`   • No sigmoid smoothing: Pure exponential for steady progression`);
   console.log(`   • Every round starts at 1.00x and climbs with same curve`);
-  console.log(`   • Very subtle micro-variations: sin(π*2*t)*0.002 + cos(π*1.5*t)*0.001`);
+  console.log(`   • No micro-variations: Steady rise without flickering`);
   console.log(`   • Fixed update interval: ${MULTIPLIER_UPDATE_INTERVAL}ms for smooth animation`);
   console.log(`   • Mathematical precision with exact target values`);
   
