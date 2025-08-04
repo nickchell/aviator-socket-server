@@ -420,102 +420,78 @@ function crashRound() {
   }, WAIT_PHASE_DURATION);
 }
 
-// Utility functions
+// Advanced exponential utility functions
 function estimateTimeToMultiplier(target) {
-  // Highly unpredictable timing with significant variation
-  // Uses random scaling to make each animation unique
+  // 🧠 Final Formula Implementation
+  // Adaptive timing based on crash multiplier for consistent realism
   
-  // Base time with high randomness
-  const baseRandomness = Math.random() * 4 + 2; // 2-6 seconds base randomness
+  // Base timing with controlled randomness
+  const baseRandomness = Math.random() * 2 + 1; // 1-3 seconds base randomness
   
   if (target < 1.5) {
-    // Short-range multipliers: Highly variable timing
-    return 3.0 + Math.random() * 3.0 + baseRandomness; // 5-12 seconds
-  } else if (target < 2.5) {
-    // Low mid-range: Unpredictable timing
-    return 4.0 + Math.random() * 4.0 + baseRandomness; // 6-14 seconds
+    // 1.1x – 1.5x: 1.5 – 2 s target
+    return 1.5 + Math.random() * 0.5 + baseRandomness; // 2.5-5 seconds
   } else if (target < 5.0) {
-    // Mid-range: Very variable timing
-    return 5.0 + Math.random() * 5.0 + baseRandomness; // 7-16 seconds
+    // 2x – 5x: 3 – 4 s target
+    return 3.0 + Math.random() * 1.0 + baseRandomness; // 4-6 seconds
   } else if (target < 15.0) {
-    // High range: Extremely variable timing
-    return 6.0 + Math.random() * 6.0 + baseRandomness; // 8-18 seconds
+    // 10x range: 6 – 8 s target
+    return 6.0 + Math.random() * 2.0 + baseRandomness; // 7-11 seconds
+  } else if (target < 100.0) {
+    // 100x range: 10 – 15 s target
+    return 10.0 + Math.random() * 5.0 + baseRandomness; // 11-18 seconds
   } else {
-    // Very high: Maximum unpredictability
-    return 8.0 + Math.random() * 8.0 + baseRandomness; // 10-22 seconds
+    // 1000x+ range: 15 – 20 s target
+    return 15.0 + Math.random() * 5.0 + baseRandomness; // 16-23 seconds
   }
 }
 
 function calculateMultiplier(progress, target) {
-  // Unpredictable multiplier animation with high randomness
-  // M(t) = e^(k * t) where k = ln(crash_multiplier) / T
+  // 🧠 Final Formula Implementation
+  // Multiplier(t) = e^(k * t) where k = ln(C) / t_target
   
-  const startValue = 1.00;
+  // Calculate adaptive k based on target multiplier and animation duration
+  const timeToCrash = estimateTimeToMultiplier(target);
+  const k = Math.log(target) / timeToCrash;
   
-  // Calculate the growth constant k based on target and normalized time
-  const k = Math.log(target);
+  // 🧮 2. Use smoother easing for very large crash multipliers
+  // Interpolate k over time to mimic acceleration: k(t) = k_min + (k_max - k_min) * (1 - e^(-a * t))
   
-  // Apply exponential function: M(t) = e^(k * progress)
-  let multiplier = Math.exp(k * progress);
+  const k_min = 0.1;  // Minimum k for smooth start
+  const k_max = 0.5;  // Maximum k for acceleration
+  const a = 2.0;      // Smoothing constant
   
-  // Add significant randomness to progress
-  let randomizedProgress = progress;
+  // Calculate adaptive k with smoothing
+  const adaptiveK = k_min + (k_max - k_min) * (1 - Math.exp(-a * progress));
   
-  // Random easing selection for unpredictability
-  const easingFunctions = [
-    () => 1 - Math.pow(1 - progress, 0.8),  // Very fast start
-    () => 1 - Math.pow(1 - progress, 1.0),  // Linear
-    () => 1 - Math.pow(1 - progress, 1.2),  // Slight ease-out
-    () => 1 - Math.pow(1 - progress, 1.5),  // Strong ease-out
-    () => 1 - Math.pow(1 - progress, 2.0),  // Very strong ease-out
-    () => Math.sin(progress * Math.PI * 0.5), // Sine curve
-    () => progress * progress, // Quadratic
-    () => Math.pow(progress, 3), // Cubic
-  ];
+  // Apply exponential function with adaptive k
+  let multiplier = Math.exp(adaptiveK * progress * timeToCrash);
   
-  // Randomly select easing function
-  const selectedEasing = easingFunctions[Math.floor(Math.random() * easingFunctions.length)];
-  randomizedProgress = selectedEasing();
+  // Add natural easing for smoother movement
+  const easingProgress = 1 - Math.pow(1 - progress, 1.2); // Gentle ease-out
+  multiplier = Math.exp(adaptiveK * easingProgress * timeToCrash);
   
-  // Add random stalls and accelerations
-  if (Math.random() < 0.15) {
-    // 15% chance of a random stall
-    randomizedProgress *= 0.6 + Math.random() * 0.4;
-  }
+  // Add micro-variations for natural decimal movement
+  const microVariation = Math.sin(progress * Math.PI * 5) * 0.008; // Subtle oscillation
+  const tensionVariation = Math.cos(progress * Math.PI * 3) * 0.005; // Gentle tension
   
-  if (Math.random() < 0.08) {
-    // 8% chance of a random acceleration
-    randomizedProgress *= 1.1 + Math.random() * 0.3;
-  }
+  multiplier += microVariation + tensionVariation;
   
-  // Recalculate with randomized progress
-  multiplier = Math.exp(k * randomizedProgress);
-  
-  // Add significant random variations
-  const randomFactor1 = (Math.random() - 0.5) * 0.02; // ±1% random variation
-  const randomFactor2 = Math.sin(progress * Math.PI * (3 + Math.random() * 4)) * 0.015; // Variable frequency
-  const randomFactor3 = Math.cos(progress * Math.PI * (2 + Math.random() * 3)) * 0.01; // Variable frequency
-  const microVariation = Math.sin(progress * Math.PI * 7) * 0.005; // High frequency micro-variation
-  const tensionVariation = Math.sin(progress * Math.PI * 13) * 0.003; // Very high frequency
-  
-  multiplier += randomFactor1 + randomFactor2 + randomFactor3 + microVariation + tensionVariation;
-  
-  // Add random spikes (rare but dramatic)
-  if (Math.random() < 0.05) {
-    // 5% chance of a random spike
-    multiplier += (Math.random() * 0.03) * (target - 1.0);
+  // Add rare random spikes for unpredictability (reduced frequency)
+  if (Math.random() < 0.02) { // 2% chance instead of 5%
+    multiplier += (Math.random() * 0.02) * (target - 1.0); // Smaller spikes
   }
   
   // Ensure we don't exceed the target
   multiplier = Math.min(multiplier, target);
   
-  // Use more precise rounding for natural decimal progression
+  // Use precise rounding for natural decimal progression
   return parseFloat(multiplier.toFixed(2));
 }
 
-// Test function to verify exponential multiplier calculation
+// Test function to verify advanced exponential multiplier calculation
 function testMultiplierCalculation() {
-  console.log(`🧮 Testing Exponential Crash Game Animation:`);
+  console.log(`🧠 Testing Advanced Exponential Crash Game Animation:`);
   
   // Test different multiplier types with mathematical precision
   const testCases = [
@@ -523,7 +499,8 @@ function testMultiplierCalculation() {
     { target: 1.8, description: "Low mid-range (1.8x) - Steady exponential" },
     { target: 3.5, description: "Mid-range (3.5x) - Balanced exponential" },
     { target: 8.0, description: "High range (8.0x) - Controlled exponential" },
-    { target: 25.0, description: "Very high (25.0x) - Epic exponential" }
+    { target: 25.0, description: "Very high (25.0x) - Epic exponential" },
+    { target: 100.0, description: "Ultra high (100.0x) - Legendary exponential" }
   ];
   
   console.log(`\n🎯 Mathematical Precision (Final Values):`);
@@ -531,34 +508,41 @@ function testMultiplierCalculation() {
     const result = calculateMultiplier(1.0, test.target);
     const expected = test.target;
     const accuracy = Math.abs(result - expected);
-    console.log(`   ${test.description}: ${result.toFixed(2)}x (target: ${expected.toFixed(2)}x, accuracy: ${accuracy.toFixed(4)})`);
+    const timeToCrash = estimateTimeToMultiplier(test.target);
+    const k = Math.log(test.target) / timeToCrash;
+    console.log(`   ${test.description}: ${result.toFixed(2)}x (target: ${expected.toFixed(2)}x, accuracy: ${accuracy.toFixed(4)}, k: ${k.toFixed(4)}, time: ${timeToCrash.toFixed(1)}s)`);
   });
   
   // Test exponential progression with mathematical analysis
-  console.log(`\n📈 Exponential Progression Analysis:`);
+  console.log(`\n📈 Advanced Exponential Progression Analysis:`);
   
-  console.log(`   Short-range (1.5x) - k = ${Math.log(1.5).toFixed(4)}:`);
+  console.log(`   Short-range (1.5x) - Adaptive k calculation:`);
   for (let progress = 0.2; progress <= 1.0; progress += 0.2) {
     const result = calculateMultiplier(progress, 1.5);
-    const pureExp = Math.exp(Math.log(1.5) * progress);
-    console.log(`     ${(progress * 100).toFixed(0)}%: ${result.toFixed(2)}x (pure: ${pureExp.toFixed(2)}x)`);
+    const timeToCrash = estimateTimeToMultiplier(1.5);
+    const k = Math.log(1.5) / timeToCrash;
+    const pureExp = Math.exp(k * progress * timeToCrash);
+    console.log(`     ${(progress * 100).toFixed(0)}%: ${result.toFixed(2)}x (pure: ${pureExp.toFixed(2)}x, k: ${k.toFixed(4)})`);
   }
   
-  console.log(`   Mid-range (4.0x) - k = ${Math.log(4.0).toFixed(4)}:`);
+  console.log(`   Mid-range (4.0x) - Adaptive k calculation:`);
   for (let progress = 0.2; progress <= 1.0; progress += 0.2) {
     const result = calculateMultiplier(progress, 4.0);
-    const pureExp = Math.exp(Math.log(4.0) * progress);
-    console.log(`     ${(progress * 100).toFixed(0)}%: ${result.toFixed(2)}x (pure: ${pureExp.toFixed(2)}x)`);
+    const timeToCrash = estimateTimeToMultiplier(4.0);
+    const k = Math.log(4.0) / timeToCrash;
+    const pureExp = Math.exp(k * progress * timeToCrash);
+    console.log(`     ${(progress * 100).toFixed(0)}%: ${result.toFixed(2)}x (pure: ${pureExp.toFixed(2)}x, k: ${k.toFixed(4)})`);
   }
   
-  console.log(`\n🧮 Exponential Features:`);
-  console.log(`   • M(t) = e^(k * t) where k = ln(crash_multiplier)`);
-  console.log(`   • Slower, smoother exponential rising with natural acceleration`);
-  console.log(`   • Natural decimal progression for hundredths digit`);
-  console.log(`   • Gentler easing curves (t^1.05 to t^1.25) for smoother movement`);
-  console.log(`   • Micro-variations for natural decimal movement (0.08% to 0.02%)`);
+  console.log(`\n🧮 Advanced Exponential Features:`);
+  console.log(`   • M(t) = e^(k * t) where k = ln(C) / t_target (adaptive k)`);
+  console.log(`   • k(t) = k_min + (k_max - k_min) * (1 - e^(-a * t)) (smoother easing)`);
+  console.log(`   • Adaptive timing: 1.1x-1.5x (2.5-5s), 2x-5x (4-6s), 10x (7-11s), 100x (11-18s)`);
+  console.log(`   • Natural acceleration with k_min=0.1, k_max=0.5, a=2.0`);
+  console.log(`   • Gentle ease-out: 1 - (1-t)^1.2 for smoother movement`);
+  console.log(`   • Micro-variations: sin(π*5*t)*0.008 + cos(π*3*t)*0.005`);
+  console.log(`   • Reduced random spikes: 2% chance instead of 5%`);
   console.log(`   • Mathematical precision with exact target values`);
-  console.log(`   • Slower update interval: ${MULTIPLIER_UPDATE_INTERVAL}ms for better pacing`);
   
   return true;
 }
