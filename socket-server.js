@@ -339,8 +339,13 @@ function startFlyingPhase() {
       const elapsedSec = elapsedMs / 1000;
       const progress = Math.min(1, elapsedSec / acceleratedTime);
       
-      // Fast exponential rise for low crashes
-      currentMultiplier = 1.0 + (crashPoint - 1.0) * Math.pow(progress, 1.5);
+      // Fast exponential rise for low crashes (using fixed k)
+      const k = 0.25; // Same fixed k-value for consistency
+      currentMultiplier = Math.exp(k * progress * acceleratedTime);
+      
+      // Apply same logistic smoothing
+      const smoothingFactor = 1 / (1 + Math.exp(-5 * (progress - 0.5)));
+      currentMultiplier = 1.0 + (currentMultiplier - 1.0) * smoothingFactor;
       
       io.emit('multiplier:update', {
         round: currentRound,
@@ -447,40 +452,29 @@ function estimateTimeToMultiplier(target) {
 }
 
 function calculateMultiplier(progress, target) {
-  // 🧠 Final Formula Implementation
-  // Multiplier(t) = e^(k * t) where k = ln(C) / t_target
+  // ✅ Ideal Curve Design Implementation
+  // Use fixed k-value for consistent exponential curve across all rounds
   
-  // Calculate adaptive k based on target multiplier and animation duration
+  // Fixed k-value for all rounds (logistic-like behavior)
+  const k = 0.25; // Fixed exponential growth rate
+  
+  // Calculate time to crash for this target
   const timeToCrash = estimateTimeToMultiplier(target);
-  const k = Math.log(target) / timeToCrash;
   
-  // 🧮 2. Use smoother easing for very large crash multipliers
-  // Interpolate k over time to mimic acceleration: k(t) = k_min + (k_max - k_min) * (1 - e^(-a * t))
+  // Apply exponential function with fixed k
+  // x(t) = e^(k * t) where t is normalized time
+  let multiplier = Math.exp(k * progress * timeToCrash);
   
-  const k_min = 0.1;  // Minimum k for smooth start
-  const k_max = 0.5;  // Maximum k for acceleration
-  const a = 2.0;      // Smoothing constant
+  // Add logistic-like smoothing for more natural curve
+  // Smooth the exponential to prevent too fast explosion
+  const smoothingFactor = 1 / (1 + Math.exp(-5 * (progress - 0.5))); // Sigmoid smoothing
+  multiplier = 1.0 + (multiplier - 1.0) * smoothingFactor;
   
-  // Calculate adaptive k with smoothing
-  const adaptiveK = k_min + (k_max - k_min) * (1 - Math.exp(-a * progress));
-  
-  // Apply exponential function with adaptive k
-  let multiplier = Math.exp(adaptiveK * progress * timeToCrash);
-  
-  // Add natural easing for smoother movement
-  const easingProgress = 1 - Math.pow(1 - progress, 1.2); // Gentle ease-out
-  multiplier = Math.exp(adaptiveK * easingProgress * timeToCrash);
-  
-  // Add very subtle micro-variations for natural decimal movement (reduced for smoothness)
-  const microVariation = Math.sin(progress * Math.PI * 3) * 0.003; // Very subtle oscillation
-  const tensionVariation = Math.cos(progress * Math.PI * 2) * 0.002; // Very gentle tension
+  // Add very subtle micro-variations for natural decimal movement
+  const microVariation = Math.sin(progress * Math.PI * 2) * 0.002; // Very subtle oscillation
+  const tensionVariation = Math.cos(progress * Math.PI * 1.5) * 0.001; // Very gentle tension
   
   multiplier += microVariation + tensionVariation;
-  
-  // Remove random spikes for maximum smoothness
-  // if (Math.random() < 0.02) {
-  //   multiplier += (Math.random() * 0.02) * (target - 1.0);
-  // }
   
   // Ensure we don't exceed the target
   multiplier = Math.min(multiplier, target);
@@ -534,15 +528,14 @@ function testMultiplierCalculation() {
     console.log(`     ${(progress * 100).toFixed(0)}%: ${result.toFixed(2)}x (pure: ${pureExp.toFixed(2)}x, k: ${k.toFixed(4)})`);
   }
   
-  console.log(`\n🧮 Realistic Exponential Features:`);
-  console.log(`   • M(t) = e^(k * t) where k = ln(C) / t_target (adaptive k)`);
-  console.log(`   • k(t) = k_min + (k_max - k_min) * (1 - e^(-a * t)) (smoother easing)`);
+  console.log(`\n✅ Ideal Curve Design Features:`);
+  console.log(`   • Fixed k = 0.25 for all rounds (consistent exponential curve)`);
+  console.log(`   • x(t) = e^(k * t) with logistic smoothing for natural behavior`);
   console.log(`   • Realistic timing: 1.1x-1.5x (3-6.5s), 2x-5x (5-9.5s), 10x (8.5-15.5s), 100x (13.5-23.5s)`);
-  console.log(`   • Accelerated crashes: <1.3x use 1-2.5s fast animation`);
-  console.log(`   • Natural acceleration with k_min=0.1, k_max=0.5, a=2.0`);
-  console.log(`   • Gentle ease-out: 1 - (1-t)^1.2 for smoother movement`);
-  console.log(`   • Very subtle micro-variations: sin(π*3*t)*0.003 + cos(π*2*t)*0.002`);
-  console.log(`   • No random spikes for maximum smoothness`);
+  console.log(`   • Accelerated crashes: <1.3x use 1-2.5s with same fixed k`);
+  console.log(`   • Logistic smoothing: 1/(1 + e^(-5*(t-0.5))) prevents explosion`);
+  console.log(`   • Every round starts at 1.00x and climbs with same curve`);
+  console.log(`   • Very subtle micro-variations: sin(π*2*t)*0.002 + cos(π*1.5*t)*0.001`);
   console.log(`   • Fixed update interval: ${MULTIPLIER_UPDATE_INTERVAL}ms for smooth animation`);
   console.log(`   • Mathematical precision with exact target values`);
   
