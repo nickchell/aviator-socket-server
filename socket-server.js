@@ -18,7 +18,7 @@ const PORT = process.env.SOCKET_PORT || 3001;
 const SECRET_TOKEN = process.env.SOCKET_SERVER_SECRET || 'your-secret-token';
 const BETTING_PHASE_DURATION = 6000; // 6 seconds
 const WAIT_PHASE_DURATION = 3000; // 3 seconds
-const MULTIPLIER_UPDATE_INTERVAL = 120; // 120ms for smoother, slower updates
+const MULTIPLIER_UPDATE_INTERVAL = 80; // 80ms for smoother, more frequent updates
 
 // Time-based round calculation (same as backend)
 const ROUND_DURATION = 10000; // 10 seconds per round
@@ -326,15 +326,33 @@ function startFlyingPhase() {
   
   console.log(`✈️ Starting flying phase for round ${currentRound} with EXACT crash point: ${crashPoint}x`);
   
-  // Handle very low crash points (instant crash)
-  if (crashPoint < 1.03) {
-    console.log(`⚡ Instant crash for low multiplier: ${crashPoint}x`);
-    currentMultiplier = crashPoint;
-    io.emit('multiplier:update', {
-      round: currentRound,
-      multiplier: currentMultiplier
-    });
-    crashRound();
+  // Handle very low crash points (accelerated crash for realism)
+  if (crashPoint < 1.3) {
+    console.log(`⚡ Accelerated crash for low multiplier: ${crashPoint}x`);
+    
+    // Use accelerated timing for very low crashes
+    const acceleratedTime = 1.0 + Math.random() * 1.5; // 1-2.5 seconds for realism
+    const startTime = Date.now();
+    
+    const fastInterval = setInterval(() => {
+      const elapsedMs = Date.now() - startTime;
+      const elapsedSec = elapsedMs / 1000;
+      const progress = Math.min(1, elapsedSec / acceleratedTime);
+      
+      // Fast exponential rise for low crashes
+      currentMultiplier = 1.0 + (crashPoint - 1.0) * Math.pow(progress, 1.5);
+      
+      io.emit('multiplier:update', {
+        round: currentRound,
+        multiplier: currentMultiplier
+      });
+      
+      if (currentMultiplier >= crashPoint) {
+        clearInterval(fastInterval);
+        crashRound();
+      }
+    }, 50); // Faster updates for quick crashes
+    
     return;
   }
   
@@ -342,55 +360,37 @@ function startFlyingPhase() {
   const startTime = Date.now();
   const timeToCrash = estimateTimeToMultiplier(crashPoint);
   
-  // Start multiplier animation with unpredictable behavior
+  console.log(`⏱️ Animation duration: ${timeToCrash.toFixed(1)} seconds`);
+  
+  // Start multiplier animation with smooth, consistent behavior
   simulationInterval = setInterval(() => {
     // Calculate elapsed time since flying phase started
     const elapsedMs = Date.now() - startTime;
     const elapsedSec = elapsedMs / 1000;
     
-    // Add random time variations for unpredictability
-    const timeVariation = (Math.random() - 0.5) * 0.5; // ±0.25 seconds
-    const adjustedElapsedSec = elapsedSec + timeVariation;
-    
-    // Calculate progress (0 to 1) with random adjustments
-    let progress = Math.min(1, adjustedElapsedSec / timeToCrash);
-    
-    // Add random progress stalls and surges
-    if (Math.random() < 0.12) {
-      // 12% chance of a progress stall
-      progress *= 0.5 + Math.random() * 0.5;
-    }
-    
-    if (Math.random() < 0.06) {
-      // 6% chance of a progress surge
-      progress *= 1.2 + Math.random() * 0.4;
-    }
+    // Calculate progress (0 to 1) - NO random variations for smoothness
+    const progress = Math.min(1, elapsedSec / timeToCrash);
     
     // Calculate current multiplier
     currentMultiplier = calculateMultiplier(progress, crashPoint);
     
-    // Randomly skip some updates to create unpredictability
-    if (Math.random() < 0.1) {
-      return; // Skip this update (10% chance)
-    }
+    // Emit multiplier update (NO random skips for smoothness)
+    io.emit('multiplier:update', {
+      round: currentRound,
+      multiplier: currentMultiplier
+    });
     
     // Debug: Log only significant multiplier changes (less frequent)
     if (currentMultiplier >= 2.0 || (Math.abs(currentMultiplier - crashPoint) < 0.05 && currentMultiplier > 1.5)) {
       console.log(`📊 ${currentMultiplier.toFixed(2)}x → ${crashPoint.toFixed(2)}x (${(progress * 100).toFixed(0)}%)`);
     }
     
-    // Emit multiplier update
-    io.emit('multiplier:update', {
-      round: currentRound,
-      multiplier: currentMultiplier
-    });
-    
-    // Check if crashed with some randomness
-    if (currentMultiplier >= crashPoint || (Math.random() < 0.01 && progress > 0.95)) {
+    // Check if crashed (NO randomness for consistency)
+    if (currentMultiplier >= crashPoint) {
       console.log(`🎯 Animation complete: reached ${currentMultiplier}x (target was ${crashPoint}x)`);
       crashRound();
     }
-  }, MULTIPLIER_UPDATE_INTERVAL + Math.random() * 50); // Variable update interval
+  }, MULTIPLIER_UPDATE_INTERVAL); // Fixed update interval for smoothness
 }
 
 function crashRound() {
@@ -422,27 +422,27 @@ function crashRound() {
 
 // Advanced exponential utility functions
 function estimateTimeToMultiplier(target) {
-  // 🧠 Final Formula Implementation
-  // Adaptive timing based on crash multiplier for consistent realism
+  // 🧠 Realistic Final Formula Implementation
+  // Adaptive timing based on crash multiplier for realistic expectations
   
-  // Base timing with controlled randomness
-  const baseRandomness = Math.random() * 2 + 1; // 1-3 seconds base randomness
+  // Base timing with controlled randomness (realistic)
+  const baseRandomness = Math.random() * 1.5 + 0.5; // 0.5-2 seconds base randomness
   
   if (target < 1.5) {
-    // 1.1x – 1.5x: 1.5 – 2 s target
-    return 1.5 + Math.random() * 0.5 + baseRandomness; // 2.5-5 seconds
+    // 1.1x – 1.5x: 2.5 – 4.5s (realistic for instant crashes)
+    return 2.5 + Math.random() * 2.0 + baseRandomness; // 3-6.5 seconds
   } else if (target < 5.0) {
-    // 2x – 5x: 3 – 4 s target
-    return 3.0 + Math.random() * 1.0 + baseRandomness; // 4-6 seconds
+    // 2x – 5x: 4.5 – 7.5s (balanced for mid-range)
+    return 4.5 + Math.random() * 3.0 + baseRandomness; // 5-9.5 seconds
   } else if (target < 15.0) {
-    // 10x range: 6 – 8 s target
-    return 6.0 + Math.random() * 2.0 + baseRandomness; // 7-11 seconds
+    // 10x range: 8 – 13s (epic for high multipliers)
+    return 8.0 + Math.random() * 5.0 + baseRandomness; // 8.5-15.5 seconds
   } else if (target < 100.0) {
-    // 100x range: 10 – 15 s target
-    return 10.0 + Math.random() * 5.0 + baseRandomness; // 11-18 seconds
+    // 100x range: 13 – 21s (legendary timing)
+    return 13.0 + Math.random() * 8.0 + baseRandomness; // 13.5-23.5 seconds
   } else {
-    // 1000x+ range: 15 – 20 s target
-    return 15.0 + Math.random() * 5.0 + baseRandomness; // 16-23 seconds
+    // 1000x+ range: 20 – 30s (mythical timing)
+    return 20.0 + Math.random() * 10.0 + baseRandomness; // 20.5-32.5 seconds
   }
 }
 
@@ -471,16 +471,16 @@ function calculateMultiplier(progress, target) {
   const easingProgress = 1 - Math.pow(1 - progress, 1.2); // Gentle ease-out
   multiplier = Math.exp(adaptiveK * easingProgress * timeToCrash);
   
-  // Add micro-variations for natural decimal movement
-  const microVariation = Math.sin(progress * Math.PI * 5) * 0.008; // Subtle oscillation
-  const tensionVariation = Math.cos(progress * Math.PI * 3) * 0.005; // Gentle tension
+  // Add very subtle micro-variations for natural decimal movement (reduced for smoothness)
+  const microVariation = Math.sin(progress * Math.PI * 3) * 0.003; // Very subtle oscillation
+  const tensionVariation = Math.cos(progress * Math.PI * 2) * 0.002; // Very gentle tension
   
   multiplier += microVariation + tensionVariation;
   
-  // Add rare random spikes for unpredictability (reduced frequency)
-  if (Math.random() < 0.02) { // 2% chance instead of 5%
-    multiplier += (Math.random() * 0.02) * (target - 1.0); // Smaller spikes
-  }
+  // Remove random spikes for maximum smoothness
+  // if (Math.random() < 0.02) {
+  //   multiplier += (Math.random() * 0.02) * (target - 1.0);
+  // }
   
   // Ensure we don't exceed the target
   multiplier = Math.min(multiplier, target);
@@ -534,14 +534,16 @@ function testMultiplierCalculation() {
     console.log(`     ${(progress * 100).toFixed(0)}%: ${result.toFixed(2)}x (pure: ${pureExp.toFixed(2)}x, k: ${k.toFixed(4)})`);
   }
   
-  console.log(`\n🧮 Advanced Exponential Features:`);
+  console.log(`\n🧮 Realistic Exponential Features:`);
   console.log(`   • M(t) = e^(k * t) where k = ln(C) / t_target (adaptive k)`);
   console.log(`   • k(t) = k_min + (k_max - k_min) * (1 - e^(-a * t)) (smoother easing)`);
-  console.log(`   • Adaptive timing: 1.1x-1.5x (2.5-5s), 2x-5x (4-6s), 10x (7-11s), 100x (11-18s)`);
+  console.log(`   • Realistic timing: 1.1x-1.5x (3-6.5s), 2x-5x (5-9.5s), 10x (8.5-15.5s), 100x (13.5-23.5s)`);
+  console.log(`   • Accelerated crashes: <1.3x use 1-2.5s fast animation`);
   console.log(`   • Natural acceleration with k_min=0.1, k_max=0.5, a=2.0`);
   console.log(`   • Gentle ease-out: 1 - (1-t)^1.2 for smoother movement`);
-  console.log(`   • Micro-variations: sin(π*5*t)*0.008 + cos(π*3*t)*0.005`);
-  console.log(`   • Reduced random spikes: 2% chance instead of 5%`);
+  console.log(`   • Very subtle micro-variations: sin(π*3*t)*0.003 + cos(π*2*t)*0.002`);
+  console.log(`   • No random spikes for maximum smoothness`);
+  console.log(`   • Fixed update interval: ${MULTIPLIER_UPDATE_INTERVAL}ms for smooth animation`);
   console.log(`   • Mathematical precision with exact target values`);
   
   return true;
