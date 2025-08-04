@@ -50,7 +50,6 @@ app.use(express.json());
 // Helper function to get multiplier for a specific round
 function getMultiplierForRound(round) {
   const multiplier = roundMultipliers.get(round);
-  console.log(`🔍 Looking up round ${round}: ${multiplier || 'not found'}`);
   return multiplier || 1.00;
 }
 
@@ -326,41 +325,6 @@ function startFlyingPhase() {
   
   console.log(`✈️ Starting flying phase for round ${currentRound} with EXACT crash point: ${crashPoint}x`);
   
-  // Handle very low crash points (accelerated crash for realism)
-  if (crashPoint < 1.3) {
-    console.log(`⚡ Accelerated crash for low multiplier: ${crashPoint}x`);
-    
-    // Use accelerated timing for very low crashes
-    const acceleratedTime = 1.0 + Math.random() * 1.5; // 1-2.5 seconds for realism
-    const startTime = Date.now();
-    
-    const fastInterval = setInterval(() => {
-      const elapsedMs = Date.now() - startTime;
-      const elapsedSec = elapsedMs / 1000;
-      const progress = Math.min(1, elapsedSec / acceleratedTime);
-      
-      // Fast exponential rise for low crashes (using fixed k)
-      const k = 0.2; // Same fixed k-value for consistency (reduced for steadier rise)
-      currentMultiplier = Math.exp(k * progress * acceleratedTime);
-      
-      // Remove sigmoid smoothing for steady rise
-      // const smoothingFactor = 1 / (1 + Math.exp(-5 * (progress - 0.5)));
-      // currentMultiplier = 1.0 + (currentMultiplier - 1.0) * smoothingFactor;
-      
-      io.emit('multiplier:update', {
-        round: currentRound,
-        multiplier: currentMultiplier
-      });
-      
-      if (currentMultiplier >= crashPoint) {
-        clearInterval(fastInterval);
-        crashRound();
-      }
-    }, 50); // Faster updates for quick crashes
-    
-    return;
-  }
-  
   // Record start time for animation
   const startTime = Date.now();
   const timeToCrash = estimateTimeToMultiplier(crashPoint);
@@ -452,32 +416,22 @@ function estimateTimeToMultiplier(target) {
 }
 
 function calculateMultiplier(progress, target) {
-  // ✅ Ideal Curve Design Implementation
-  // Use fixed k-value for consistent exponential curve across all rounds
+  // ✅ Smooth Stepped Hundredths Animation
+  // Creates realistic counter-like progression: 1.00 → 1.01 → 1.02 → 1.03
   
-  // Fixed k-value for all rounds (logistic-like behavior)
-  const k = 0.2; // Fixed exponential growth rate (reduced for steadier rise)
+  // Calculate how many hundredths steps we need
+  const startMultiplier = 1.00;
+  const multiplierRange = target - startMultiplier;
+  const totalSteps = Math.ceil(multiplierRange * 100); // Total hundredths steps
   
-  // Calculate time to crash for this target
-  const timeToCrash = estimateTimeToMultiplier(target);
+  // Calculate current step based on progress
+  const currentStep = Math.floor(progress * totalSteps);
   
-  // Apply exponential function with fixed k
-  // x(t) = e^(k * t) where t is normalized time
-  let multiplier = Math.exp(k * progress * timeToCrash);
+  // Calculate smooth multiplier with stepped hundredths
+  const smoothMultiplier = startMultiplier + (currentStep / 100);
   
-  // Remove sigmoid smoothing to prevent flickering
-  // multiplier = 1.0 + (multiplier - 1.0) * smoothingFactor;
-  
-  // Remove all micro-variations for steady rise
-  // const microVariation = Math.sin(progress * Math.PI * 2) * 0.002;
-  // const tensionVariation = Math.cos(progress * Math.PI * 1.5) * 0.001;
-  // multiplier += microVariation + tensionVariation;
-  
-  // Ensure we don't exceed the target
-  multiplier = Math.min(multiplier, target);
-  
-  // Use precise rounding for natural decimal progression
-  return parseFloat(multiplier.toFixed(2));
+  // Ensure we don't exceed target
+  return Math.min(smoothMultiplier, target);
 }
 
 // Test function to verify advanced exponential multiplier calculation
