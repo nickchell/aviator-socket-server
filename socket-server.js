@@ -139,7 +139,7 @@ app.get('/health', (req, res) => {
 
 // Queue endpoint for receiving multipliers from backend
 app.post('/queue', authenticateRequest, (req, res) => {
-  const { multipliers, startRound } = req.body;
+  const { multipliers, startRound, currentRound: backendCurrentRound } = req.body;
   
   if (!multipliers || !Array.isArray(multipliers)) {
     return res.status(400).json({ error: 'Invalid multipliers array' });
@@ -215,6 +215,22 @@ app.post('/queue', authenticateRequest, (req, res) => {
 app.get('/debug', (req, res) => {
   const timeBasedRound = getCurrentRound();
   const roundMultiplier = getMultiplierForRound(currentRound);
+  
+  // Allow specifying a reference round via query parameter
+  const referenceRound = req.query.round ? parseInt(req.query.round) : currentRound;
+  
+  // Get the actual recent rounds (referenceRound-1 down to referenceRound-10)
+  const recentRounds = [];
+  for (let i = 1; i <= 10; i++) {
+    const roundNumber = referenceRound - i;
+    if (roundNumber > 0) {
+      const multiplier = roundMultipliers.get(roundNumber);
+      if (multiplier) {
+        recentRounds.push([roundNumber, multiplier]);
+      }
+    }
+  }
+  
   res.json({ 
     gamePhase, 
     currentRound, 
@@ -224,7 +240,7 @@ app.get('/debug', (req, res) => {
     currentMultiplier: gamePhase === 'flying' ? currentMultiplier : roundMultiplier,
     crashPoint,
     queuePreview: multiplierQueue.slice(0, 5),
-    roundMultipliers: Array.from(roundMultipliers.entries()).slice(-10).reverse(),
+    roundMultipliers: recentRounds, // Return actual recent rounds
     activeTimers: {
       simulationInterval: !!simulationInterval,
       bettingTimer: !!bettingTimer,
