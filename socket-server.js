@@ -39,6 +39,7 @@ let gamePhase = 'wait'; // 'wait', 'betting', 'flying', 'crashed'
 let simulationInterval = null;
 let bettingTimer = null;
 let waitTimer = null;
+let startTime = null; // Track flying phase start time
 
 // Client-specific state tracking
 const clientStates = new Map(); // socketId -> { currentRound, isSynced }
@@ -125,9 +126,9 @@ app.post('/queue', authenticateRequest, (req, res) => {
   console.log(`⏰ Backend start round: ${startRound}`);
   console.log(`🗺️ Round multipliers: ${Array.from(roundMultipliers.entries()).slice(-5).map(([r, m]) => `${r}:${m}`).join(', ')}`);
   
-  // Start simulation if not already running
-  if (gamePhase === 'wait' && multiplierQueue.length > 0) {
-    console.log(`🚀 Starting simulation with ${multiplierQueue.length} multipliers in queue`);
+  // Start simulation if not already running or if we're in crashed phase
+  if ((gamePhase === 'wait' || gamePhase === 'crashed') && multiplierQueue.length > 0) {
+    console.log(`🚀 Starting simulation with ${multiplierQueue.length} multipliers in queue (phase: ${gamePhase})`);
     
     // Ensure we start with the correct round
     if (startRound) {
@@ -153,9 +154,15 @@ app.post('/queue', authenticateRequest, (req, res) => {
       }
     }
     
+    // If we're in crashed phase, transition to wait first
+    if (gamePhase === 'crashed') {
+      console.log(`🔄 Transitioning from crashed to wait phase`);
+      gamePhase = 'wait';
+    }
+    
     console.log(`🎮 Starting simulation from round ${currentRound}`);
     startNextRound();
-  } else if (gamePhase !== 'wait') {
+  } else if (gamePhase !== 'wait' && gamePhase !== 'crashed') {
     console.log(`⏳ Simulation already running (phase: ${gamePhase}), queue will be processed after current round`);
   }
   
@@ -198,8 +205,11 @@ app.get('/current-state', (req, res) => {
 
 // Manual trigger endpoint (for testing)
 app.post('/trigger-next', authenticateRequest, (req, res) => {
-  if (gamePhase === 'wait' && multiplierQueue.length > 0) {
-    console.log(`🔧 Manual trigger: Starting next round`);
+  if ((gamePhase === 'wait' || gamePhase === 'crashed') && multiplierQueue.length > 0) {
+    console.log(`🔧 Manual trigger: Starting next round from phase ${gamePhase}`);
+    if (gamePhase === 'crashed') {
+      gamePhase = 'wait';
+    }
     startNextRound();
     res.json({ success: true, message: 'Next round triggered' });
   } else {
@@ -217,6 +227,39 @@ app.get('/test-round/:round', (req, res) => {
     hasMultiplier: roundMultipliers.has(round),
     allRounds: Array.from(roundMultipliers.keys()).sort((a, b) => a - b),
     recentRounds: Array.from(roundMultipliers.entries()).slice(-10)
+  });
+});
+
+// Force start simulation endpoint (for debugging)
+app.post('/force-start', authenticateRequest, (req, res) => {
+  console.log(`🔧 Force start: Current phase ${gamePhase}, queue size ${multiplierQueue.length}`);
+  
+  if (multiplierQueue.length === 0) {
+    return res.json({ success: false, message: 'No multipliers in queue' });
+  }
+  
+  // Force transition to wait phase if needed
+  if (gamePhase !== 'wait') {
+    console.log(`🔄 Force transitioning from ${gamePhase} to wait phase`);
+    gamePhase = 'wait';
+  }
+  
+  // Set current round if not set
+  if (currentRound === 0) {
+    const firstRound = Math.min(...Array.from(roundMultipliers.keys()));
+    currentRound = firstRound;
+    console.log(`🎯 Force setting current round to ${currentRound}`);
+  }
+  
+  console.log(`🚀 Force starting simulation from round ${currentRound}`);
+  startNextRound();
+  
+  res.json({ 
+    success: true, 
+    message: 'Simulation force started',
+    currentRound,
+    gamePhase,
+    queueSize: multiplierQueue.length
   });
 });
 
@@ -325,6 +368,13 @@ function startFlyingPhase() {
   
   console.log(`✈️ Starting flying phase for round ${currentRound} with EXACT crash point: ${crashPoint}x`);
   
+  // Emit flying phase event to notify clients
+  io.emit('round:flying', {
+    round: currentRound,
+    multiplier: currentMultiplier,
+    crashPoint: crashPoint
+  });
+  
   // Record start time for animation
   const startTime = Date.now();
   const timeToCrash = estimateTimeToMultiplier(crashPoint);
@@ -388,9 +438,17 @@ function crashRound() {
   // Start wait phase
   waitTimer = setTimeout(() => {
     console.log(`⏭️ Moving to next round...`);
+    // Set to wait phase first
+    gamePhase = 'wait';
     // Increment current round for the next round in sequence
     currentRound++;
-    startNextRound();
+    // Check if we have multipliers to start the next round
+    if (multiplierQueue.length > 0) {
+      console.log(`🚀 Starting next round with ${multiplierQueue.length} multipliers in queue`);
+      startNextRound();
+    } else {
+      console.log(`⏸️ No multipliers in queue, waiting for backend...`);
+    }
   }, WAIT_PHASE_DURATION);
 }
 
