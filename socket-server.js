@@ -413,7 +413,7 @@ function calculateMultiplier(progress, target) {
   // All multipliers follow the exact same growth pattern - only stop point differs
   
   // Fixed exponential growth rate for ALL multipliers
-  const FIXED_GROWTH_RATE = 0.3; // Same exponential rate for every game
+  const FIXED_GROWTH_RATE = 0.1; // Same exponential rate for every game
   
   // Universal exponential formula: multiplier = e^(rate * time)
   // This creates the same curve shape for 1.2x, 10x, 100x, etc.
