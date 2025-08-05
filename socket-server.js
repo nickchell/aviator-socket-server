@@ -470,12 +470,14 @@ function calculateMultiplier(progress, target) {
   // 🎯 UNIVERSAL EXPONENTIAL CURVE
   // All multipliers follow the exact same growth pattern - only stop point differs
   
-  // Fixed exponential growth rate for ALL multipliers
-  const FIXED_GROWTH_RATE = 0.1; // Same exponential rate for every game
+  // Calculate growth rate to ensure we can reach the target at progress = 1.0
+  // We want: target = e^(rate * 8) when progress = 1.0
+  // So: rate = ln(target) / 8
+  const growthRate = Math.log(target) / 8;
   
   // Universal exponential formula: multiplier = e^(rate * time)
   // This creates the same curve shape for 1.2x, 10x, 100x, etc.
-  const universalMultiplier = Math.exp(FIXED_GROWTH_RATE * progress * 8); // 8 seconds duration
+  const universalMultiplier = Math.exp(growthRate * progress * 8); // 8 seconds duration
   
   // Convert to stepped hundredths for smooth animation
   const steppedMultiplier = Math.floor(universalMultiplier * 100) / 100;
@@ -529,8 +531,8 @@ function testMultiplierCalculation() {
   
   console.log(`\n✅ Universal Curve Design Features:`);
   console.log(`   • Fixed 8-second duration for ALL multipliers (no timing prediction)`);
-  console.log(`   • Fixed exponential rate (0.3) for ALL multipliers (same curve shape)`);
-  console.log(`   • Universal formula: multiplier = e^(0.3 * time) for all games`);
+  console.log(`   • Dynamic growth rate: ln(target) / 8 for each multiplier`);
+  console.log(`   • Universal formula: multiplier = e^(ln(target)/8 * time) for all games`);
   console.log(`   • Only difference: where the animation stops (crash point)`);
   console.log(`   • 1.2x crash: stops at 1.2x, 100x crash: stops at 100x`);
   console.log(`   • First 3-4 seconds look identical for all multipliers`);
