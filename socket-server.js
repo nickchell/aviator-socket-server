@@ -566,7 +566,7 @@ function estimateTimeToMultiplier(target) {
   // All multipliers use the same fixed timing - only the stop point differs
   
   // Fixed animation duration for ALL multipliers (no prediction possible)
-  const FIXED_ANIMATION_DURATION = 12.0; // 12 seconds for all games (increased from 8s)
+  const FIXED_ANIMATION_DURATION = 10.0; // 10 seconds for all games
   
   // Add minimal randomness to prevent exact timing prediction
   const microRandomness = (Math.random() - 0.5) * 0.5; // ±0.25 seconds
@@ -578,14 +578,13 @@ function calculateMultiplier(progress, target) {
   // 🎯 UNIVERSAL EXPONENTIAL CURVE
   // All multipliers follow the exact same growth pattern - only stop point differs
   
-  // Calculate growth rate to ensure we can reach the target at progress = 1.0
-  // We want: target = e^(rate * 12) when progress = 1.0 (increased from 8s)
-  // So: rate = ln(target) / 12
-  const growthRate = Math.log(target) / 12;
+  // Use a FIXED growth rate for ALL multipliers (no prediction possible)
+  // This ensures the curve looks identical for the first 80% of the animation
+  const UNIVERSAL_GROWTH_RATE = 0.3; // Fixed rate for all multipliers
   
-  // Universal exponential formula: multiplier = e^(rate * time)
-  // This creates the same curve shape for 1.2x, 10x, 100x, etc.
-  const universalMultiplier = Math.exp(growthRate * progress * 12); // 12 seconds duration
+  // Universal exponential formula: multiplier = e^(fixed_rate * time)
+  // This creates the EXACT same curve shape for 1.2x, 10x, 100x, etc.
+  const universalMultiplier = Math.exp(UNIVERSAL_GROWTH_RATE * progress * 10); // 10 seconds duration
   
   // Convert to stepped hundredths for smooth animation
   const steppedMultiplier = Math.floor(universalMultiplier * 100) / 100;
@@ -625,25 +624,25 @@ function testMultiplierCalculation() {
   
   console.log(`   Early progression (0-4 seconds) - ALL multipliers identical:`);
   for (let progress = 0.1; progress <= 0.4; progress += 0.1) {
-    const time = progress * 12; // 12 second duration
+    const time = progress * 10; // 10 second duration
     const universalValue = calculateMultiplier(progress, 1000); // Use high target to see full curve
     console.log(`     ${time.toFixed(1)}s: ${universalValue.toFixed(2)}x (universal curve)`);
   }
   
   console.log(`   Mid progression (4-8 seconds) - Still identical until crash:`);
   for (let progress = 0.4; progress <= 0.8; progress += 0.1) {
-    const time = progress * 12;
+    const time = progress * 10;
     const universalValue = calculateMultiplier(progress, 1000);
     console.log(`     ${time.toFixed(1)}s: ${universalValue.toFixed(2)}x (universal curve)`);
   }
   
   console.log(`\n✅ Universal Curve Design Features:`);
-  console.log(`   • Fixed 12-second duration for ALL multipliers (no timing prediction)`);
-  console.log(`   • Dynamic growth rate: ln(target) / 12 for each multiplier`);
-  console.log(`   • Universal formula: multiplier = e^(ln(target)/12 * time) for all games`);
+  console.log(`   • Fixed 10-second duration for ALL multipliers (no timing prediction)`);
+  console.log(`   • Fixed growth rate: 0.3 for ALL multipliers (no curve prediction)`);
+  console.log(`   • Universal formula: multiplier = e^(0.3 * time) for all games`);
   console.log(`   • Only difference: where the animation stops (crash point)`);
   console.log(`   • 1.2x crash: stops at 1.2x, 100x crash: stops at 100x`);
-  console.log(`   • First 4-5 seconds look identical for all multipliers`);
+  console.log(`   • First 8 seconds look IDENTICAL for all multipliers`);
   console.log(`   • Impossible to predict crash point from animation behavior`);
   console.log(`   • Stepped hundredths for smooth counter-like display`);
   console.log(`   • Fixed update interval: ${MULTIPLIER_UPDATE_INTERVAL}ms`);
@@ -691,7 +690,7 @@ server.listen(PORT, () => {
   console.log(`🎮 Game phases: betting(${BETTING_PHASE_DURATION}ms) → flying → crashed → wait(${WAIT_PHASE_DURATION}ms)`);
   console.log(`⚡ Update interval: ${MULTIPLIER_UPDATE_INTERVAL}ms`);
   console.log(`🎯 Initial current round: ${currentRound}`);
-  console.log(`🎲 Universal growth curve: 12s fixed duration, same curve for all multipliers`);
+  console.log(`🎲 Universal growth curve: 10s fixed duration, fixed rate 0.3, truly unpredictable`);
   
   // Test multiplier calculation
   testMultiplierCalculation();
