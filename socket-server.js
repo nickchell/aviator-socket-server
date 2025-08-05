@@ -18,7 +18,7 @@ const PORT = process.env.SOCKET_PORT || 3001;
 const SECRET_TOKEN = process.env.SOCKET_SERVER_SECRET || 'your-secret-token';
 const BETTING_PHASE_DURATION = 6000; // 6 seconds
 const WAIT_PHASE_DURATION = 3000; // 3 seconds
-const MULTIPLIER_UPDATE_INTERVAL = 200; // 200ms for smoother, less flickery updates
+const MULTIPLIER_UPDATE_INTERVAL = 100; // 100ms for smooth progression updates
 
 // Time-based round calculation (same as backend)
 const ROUND_DURATION = 10000; // 10 seconds per round
@@ -503,8 +503,9 @@ function startFlyingPhase() {
       // Calculate current multiplier
       currentMultiplier = calculateMultiplier(progress, crashPoint);
       
-      // Only emit if multiplier has actually changed significantly (prevent flickery updates)
-      if (Math.abs(currentMultiplier - lastEmittedMultiplier) >= 0.05) {
+      // Emit smooth progression updates (1.01, 1.02, 1.03, etc.)
+      // Use a smaller threshold to show gradual increments
+      if (Math.abs(currentMultiplier - lastEmittedMultiplier) >= 0.01) {
         io.emit('multiplier:update', {
           round: currentRound,
           multiplier: currentMultiplier
@@ -512,8 +513,8 @@ function startFlyingPhase() {
         lastEmittedMultiplier = currentMultiplier;
       }
       
-      // Debug: Log only significant multiplier changes (less frequent)
-      if (currentMultiplier >= 2.0 || (Math.abs(currentMultiplier - crashPoint) < 0.05 && currentMultiplier > 1.5)) {
+      // Debug: Log smooth progression updates
+      if (currentMultiplier >= 1.0) {
         console.log(`📊 ${currentMultiplier.toFixed(2)}x → ${crashPoint.toFixed(2)}x (${(progress * 100).toFixed(0)}%)`);
       }
       
