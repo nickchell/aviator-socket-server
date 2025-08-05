@@ -224,7 +224,7 @@ app.get('/debug', (req, res) => {
     currentMultiplier: gamePhase === 'flying' ? currentMultiplier : roundMultiplier,
     crashPoint,
     queuePreview: multiplierQueue.slice(0, 5),
-    roundMultipliers: Array.from(roundMultipliers.entries()).slice(-10),
+    roundMultipliers: Array.from(roundMultipliers.entries()).slice(-10).reverse(),
     activeTimers: {
       simulationInterval: !!simulationInterval,
       bettingTimer: !!bettingTimer,
@@ -396,16 +396,6 @@ io.on('connection', (socket) => {
   // Handle client errors
   socket.on('error', (error) => {
     console.error(`❌ Socket error for ${socket.id}:`, error);
-  });
-  
-  // Handle recent multipliers request
-  socket.on('request:recent-multipliers', () => {
-    console.log(`📤 Sending recent multipliers to ${socket.id}`);
-    const recentMultipliers = Array.from(roundMultipliers.entries())
-      .slice(-10) // Get last 10 multipliers
-      .map(([round, multiplier]) => ({ round, multiplier }));
-    
-    socket.emit('recent:multipliers', { multipliers: recentMultipliers });
   });
   
   // Handle client requesting current state
