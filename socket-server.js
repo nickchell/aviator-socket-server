@@ -18,7 +18,7 @@ const PORT = process.env.SOCKET_PORT || 3001;
 const SECRET_TOKEN = process.env.SOCKET_SERVER_SECRET || 'your-secret-token';
 const BETTING_PHASE_DURATION = 6000; // 6 seconds
 const WAIT_PHASE_DURATION = 3000; // 3 seconds
-const MULTIPLIER_UPDATE_INTERVAL = 80; // 80ms for smoother, more frequent updates
+const MULTIPLIER_UPDATE_INTERVAL = 200; // 200ms for smoother, less flickery updates
 
 // Time-based round calculation (same as backend)
 const ROUND_DURATION = 10000; // 10 seconds per round
@@ -503,8 +503,8 @@ function startFlyingPhase() {
       // Calculate current multiplier
       currentMultiplier = calculateMultiplier(progress, crashPoint);
       
-      // Only emit if multiplier has actually changed (prevent duplicate emissions)
-      if (Math.abs(currentMultiplier - lastEmittedMultiplier) >= 0.01) {
+      // Only emit if multiplier has actually changed significantly (prevent flickery updates)
+      if (Math.abs(currentMultiplier - lastEmittedMultiplier) >= 0.05) {
         io.emit('multiplier:update', {
           round: currentRound,
           multiplier: currentMultiplier
@@ -518,8 +518,8 @@ function startFlyingPhase() {
       }
       
       // Check if crashed (NO randomness for consistency)
-      if (currentMultiplier >= crashPoint) {
-        console.log(`🎯 Animation complete: reached ${currentMultiplier}x (target was ${crashPoint}x)`);
+      if (progress >= 1.0 || currentMultiplier >= crashPoint) {
+        console.log(`🎯 Animation complete: reached ${currentMultiplier}x (target was ${crashPoint}x) at ${(progress * 100).toFixed(1)}% progress`);
         crashRound();
       }
     }, MULTIPLIER_UPDATE_INTERVAL); // Fixed update interval for smoothness
@@ -594,6 +594,11 @@ function calculateMultiplier(progress, target) {
   
   // Convert to stepped hundredths for smooth animation
   const steppedMultiplier = Math.floor(dynamicMultiplier * 100) / 100;
+  
+  // At 100% progress, ensure we reach exactly the target
+  if (progress >= 1.0) {
+    return target;
+  }
   
   // Stop at target multiplier (this is the only difference between games)
   // Remove the slight increase at crash by using exact target
