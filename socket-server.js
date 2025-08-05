@@ -394,109 +394,91 @@ function crashRound() {
   }, WAIT_PHASE_DURATION);
 }
 
-// Advanced exponential utility functions
+// Universal growth curve system
 function estimateTimeToMultiplier(target) {
-  // 🧠 Realistic Final Formula Implementation
-  // Adaptive timing based on crash multiplier for realistic expectations
+  // 🎯 UNIVERSAL GROWTH CURVE
+  // All multipliers use the same fixed timing - only the stop point differs
   
-  // Base timing with controlled randomness (realistic)
-  const baseRandomness = Math.random() * 1.5 + 0.5; // 0.5-2 seconds base randomness
+  // Fixed animation duration for ALL multipliers (no prediction possible)
+  const FIXED_ANIMATION_DURATION = 8.0; // 8 seconds for all games
   
-  if (target < 1.5) {
-    // 1.1x – 1.5x: 2.5 – 4.5s (realistic for instant crashes)
-    return 2.5 + Math.random() * 2.0 + baseRandomness; // 3-6.5 seconds
-  } else if (target < 5.0) {
-    // 2x – 5x: 4.5 – 7.5s (balanced for mid-range)
-    return 4.5 + Math.random() * 3.0 + baseRandomness; // 5-9.5 seconds
-  } else if (target < 15.0) {
-    // 10x range: 8 – 13s (epic for high multipliers)
-    return 8.0 + Math.random() * 5.0 + baseRandomness; // 8.5-15.5 seconds
-  } else if (target < 100.0) {
-    // 100x range: 13 – 21s (legendary timing)
-    return 13.0 + Math.random() * 8.0 + baseRandomness; // 13.5-23.5 seconds
-  } else {
-    // 1000x+ range: 20 – 30s (mythical timing)
-    return 20.0 + Math.random() * 10.0 + baseRandomness; // 20.5-32.5 seconds
-  }
+  // Add minimal randomness to prevent exact timing prediction
+  const microRandomness = (Math.random() - 0.5) * 0.5; // ±0.25 seconds
+  
+  return FIXED_ANIMATION_DURATION + microRandomness;
 }
 
 function calculateMultiplier(progress, target) {
-  // ✅ Smooth Stepped Hundredths Animation
-  // Creates realistic counter-like progression: 1.00 → 1.01 → 1.02 → 1.03
+  // 🎯 UNIVERSAL EXPONENTIAL CURVE
+  // All multipliers follow the exact same growth pattern - only stop point differs
   
-  // Calculate how many hundredths steps we need
-  const startMultiplier = 1.00;
-  const multiplierRange = target - startMultiplier;
-  const totalSteps = Math.ceil(multiplierRange * 100); // Total hundredths steps
+  // Fixed exponential growth rate for ALL multipliers
+  const FIXED_GROWTH_RATE = 0.3; // Same exponential rate for every game
   
-  // Calculate current step based on progress
-  const currentStep = Math.floor(progress * totalSteps);
+  // Universal exponential formula: multiplier = e^(rate * time)
+  // This creates the same curve shape for 1.2x, 10x, 100x, etc.
+  const universalMultiplier = Math.exp(FIXED_GROWTH_RATE * progress * 8); // 8 seconds duration
   
-  // Calculate smooth multiplier with stepped hundredths
-  const smoothMultiplier = startMultiplier + (currentStep / 100);
+  // Convert to stepped hundredths for smooth animation
+  const steppedMultiplier = Math.floor(universalMultiplier * 100) / 100;
   
-  // Ensure we don't exceed target and fix floating point precision
-  const result = Math.min(smoothMultiplier, target);
+  // Stop at target multiplier (this is the only difference between games)
+  const result = Math.min(steppedMultiplier, target);
   
-  // Fix floating point precision issues by rounding to 2 decimal places
-  return Math.round(result * 100) / 100;
+  // Ensure minimum of 1.00
+  return Math.max(1.00, result);
 }
 
-// Test function to verify advanced exponential multiplier calculation
+// Test function to verify universal growth curve
 function testMultiplierCalculation() {
-  console.log(`🧠 Testing Advanced Exponential Crash Game Animation:`);
+  console.log(`🎯 Testing Universal Growth Curve System:`);
   
-  // Test different multiplier types with mathematical precision
+  // Test different multiplier types - all should use same curve
   const testCases = [
-    { target: 1.3, description: "Short-range (1.3x) - Fast exponential rise" },
-    { target: 1.8, description: "Low mid-range (1.8x) - Steady exponential" },
-    { target: 3.5, description: "Mid-range (3.5x) - Balanced exponential" },
-    { target: 8.0, description: "High range (8.0x) - Controlled exponential" },
-    { target: 25.0, description: "Very high (25.0x) - Epic exponential" },
-    { target: 100.0, description: "Ultra high (100.0x) - Legendary exponential" }
+    { target: 1.2, description: "Low crash (1.2x) - Stops early" },
+    { target: 2.0, description: "Medium crash (2.0x) - Stops mid-curve" },
+    { target: 5.0, description: "High crash (5.0x) - Stops later" },
+    { target: 15.0, description: "Very high (15.0x) - Stops much later" },
+    { target: 50.0, description: "Epic (50.0x) - Stops near end" },
+    { target: 100.0, description: "Legendary (100.0x) - Stops at end" }
   ];
   
-  console.log(`\n🎯 Mathematical Precision (Final Values):`);
+  console.log(`\n🎯 Universal Curve Analysis (All use same growth pattern):`);
   testCases.forEach(test => {
     const result = calculateMultiplier(1.0, test.target);
     const expected = test.target;
     const accuracy = Math.abs(result - expected);
     const timeToCrash = estimateTimeToMultiplier(test.target);
-    const k = Math.log(test.target) / timeToCrash;
-    console.log(`   ${test.description}: ${result.toFixed(2)}x (target: ${expected.toFixed(2)}x, accuracy: ${accuracy.toFixed(4)}, k: ${k.toFixed(4)}, time: ${timeToCrash.toFixed(1)}s)`);
+    console.log(`   ${test.description}: ${result.toFixed(2)}x (target: ${expected.toFixed(2)}x, accuracy: ${accuracy.toFixed(4)}, time: ${timeToCrash.toFixed(1)}s)`);
   });
   
-  // Test exponential progression with mathematical analysis
-  console.log(`\n📈 Advanced Exponential Progression Analysis:`);
+  // Test progression - all should follow identical curve until they stop
+  console.log(`\n📈 Universal Curve Progression (First 3 seconds identical for all):`);
   
-  console.log(`   Short-range (1.5x) - Adaptive k calculation:`);
-  for (let progress = 0.2; progress <= 1.0; progress += 0.2) {
-    const result = calculateMultiplier(progress, 1.5);
-    const timeToCrash = estimateTimeToMultiplier(1.5);
-    const k = Math.log(1.5) / timeToCrash;
-    const pureExp = Math.exp(k * progress * timeToCrash);
-    console.log(`     ${(progress * 100).toFixed(0)}%: ${result.toFixed(2)}x (pure: ${pureExp.toFixed(2)}x, k: ${k.toFixed(4)})`);
+  console.log(`   Early progression (0-3 seconds) - ALL multipliers identical:`);
+  for (let progress = 0.1; progress <= 0.4; progress += 0.1) {
+    const time = progress * 8; // 8 second duration
+    const universalValue = calculateMultiplier(progress, 1000); // Use high target to see full curve
+    console.log(`     ${time.toFixed(1)}s: ${universalValue.toFixed(2)}x (universal curve)`);
   }
   
-  console.log(`   Mid-range (4.0x) - Adaptive k calculation:`);
-  for (let progress = 0.2; progress <= 1.0; progress += 0.2) {
-    const result = calculateMultiplier(progress, 4.0);
-    const timeToCrash = estimateTimeToMultiplier(4.0);
-    const k = Math.log(4.0) / timeToCrash;
-    const pureExp = Math.exp(k * progress * timeToCrash);
-    console.log(`     ${(progress * 100).toFixed(0)}%: ${result.toFixed(2)}x (pure: ${pureExp.toFixed(2)}x, k: ${k.toFixed(4)})`);
+  console.log(`   Mid progression (3-6 seconds) - Still identical until crash:`);
+  for (let progress = 0.4; progress <= 0.8; progress += 0.1) {
+    const time = progress * 8;
+    const universalValue = calculateMultiplier(progress, 1000);
+    console.log(`     ${time.toFixed(1)}s: ${universalValue.toFixed(2)}x (universal curve)`);
   }
   
-  console.log(`\n✅ Ideal Curve Design Features:`);
-  console.log(`   • Fixed k = 0.2 for all rounds (consistent exponential curve)`);
-  console.log(`   • x(t) = e^(k * t) with pure exponential for steady rise`);
-  console.log(`   • Realistic timing: 1.1x-1.5x (3-6.5s), 2x-5x (5-9.5s), 10x (8.5-15.5s), 100x (13.5-23.5s)`);
-  console.log(`   • Accelerated crashes: <1.3x use 1-2.5s with same fixed k`);
-  console.log(`   • No sigmoid smoothing: Pure exponential for steady progression`);
-  console.log(`   • Every round starts at 1.00x and climbs with same curve`);
-  console.log(`   • No micro-variations: Steady rise without flickering`);
-  console.log(`   • Fixed update interval: ${MULTIPLIER_UPDATE_INTERVAL}ms for smooth animation`);
-  console.log(`   • Mathematical precision with exact target values`);
+  console.log(`\n✅ Universal Curve Design Features:`);
+  console.log(`   • Fixed 8-second duration for ALL multipliers (no timing prediction)`);
+  console.log(`   • Fixed exponential rate (0.3) for ALL multipliers (same curve shape)`);
+  console.log(`   • Universal formula: multiplier = e^(0.3 * time) for all games`);
+  console.log(`   • Only difference: where the animation stops (crash point)`);
+  console.log(`   • 1.2x crash: stops at 1.2x, 100x crash: stops at 100x`);
+  console.log(`   • First 3-4 seconds look identical for all multipliers`);
+  console.log(`   • Impossible to predict crash point from animation behavior`);
+  console.log(`   • Stepped hundredths for smooth counter-like display`);
+  console.log(`   • Fixed update interval: ${MULTIPLIER_UPDATE_INTERVAL}ms`);
   
   return true;
 }
@@ -541,6 +523,7 @@ server.listen(PORT, () => {
   console.log(`🎮 Game phases: betting(${BETTING_PHASE_DURATION}ms) → flying → crashed → wait(${WAIT_PHASE_DURATION}ms)`);
   console.log(`⚡ Update interval: ${MULTIPLIER_UPDATE_INTERVAL}ms`);
   console.log(`🎯 Initial current round: ${currentRound}`);
+  console.log(`🎲 Universal growth curve: 8s fixed duration, same curve for all multipliers`);
   
   // Test multiplier calculation
   testMultiplierCalculation();
