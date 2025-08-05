@@ -530,7 +530,11 @@ function crashRound() {
   gamePhase = 'crashed';
   currentMultiplier = crashPoint;
   
+  // Store the crash point in roundMultipliers for recent multipliers display
+  roundMultipliers.set(currentRound, crashPoint);
+  
   console.log(`💥 Round ${currentRound} crashed at ${crashPoint}x`);
+  console.log(`📋 Stored round ${currentRound} → multiplier ${crashPoint} in recent multipliers`);
   
   // Clear simulation interval
   if (simulationInterval) {
