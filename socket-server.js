@@ -321,6 +321,73 @@ app.post('/force-start', authenticateRequest, (req, res) => {
   });
 });
 
+// Recovery endpoint to force next round if stuck
+app.post('/recover', authenticateRequest, (req, res) => {
+  console.log(`🔧 Recovery requested: Current phase ${gamePhase}, queue size ${multiplierQueue.length}`);
+  
+  // Clear any existing timers
+  if (simulationInterval) {
+    clearInterval(simulationInterval);
+    simulationInterval = null;
+  }
+  if (bettingTimer) {
+    clearTimeout(bettingTimer);
+    bettingTimer = null;
+  }
+  if (waitTimer) {
+    clearTimeout(waitTimer);
+    waitTimer = null;
+  }
+  
+  // Force transition to crashed phase if in flying
+  if (gamePhase === 'flying') {
+    console.log(`🔄 Force crashing round ${currentRound}`);
+    crashRound();
+    res.json({ success: true, message: 'Forced crash and moving to next round' });
+    return;
+  }
+  
+  // Force transition to wait phase if in crashed
+  if (gamePhase === 'crashed') {
+    console.log(`🔄 Force moving to next round from crashed phase`);
+    gamePhase = 'wait';
+    currentRound++;
+    
+    if (multiplierQueue.length > 0) {
+      console.log(`🚀 Starting next round with ${multiplierQueue.length} multipliers in queue`);
+      startNextRound();
+      res.json({ success: true, message: 'Started next round' });
+    } else {
+      console.log(`⏸️ No multipliers in queue, waiting for backend...`);
+      res.json({ success: true, message: 'Moved to wait phase, waiting for multipliers' });
+    }
+    return;
+  }
+  
+  // If in betting phase, force to flying
+  if (gamePhase === 'betting') {
+    console.log(`🔄 Force starting flying phase`);
+    startFlyingPhase();
+    res.json({ success: true, message: 'Forced flying phase start' });
+    return;
+  }
+  
+  // If in wait phase, try to start next round
+  if (gamePhase === 'wait') {
+    if (multiplierQueue.length > 0) {
+      console.log(`🚀 Starting next round with ${multiplierQueue.length} multipliers in queue`);
+      startNextRound();
+      res.json({ success: true, message: 'Started next round' });
+    } else {
+      console.log(`⏸️ No multipliers in queue, waiting for backend...`);
+      res.json({ success: true, message: 'Waiting for multipliers from backend' });
+    }
+    return;
+  }
+  
+  res.json({ success: false, message: 'Unknown game phase' });
+});
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
@@ -490,6 +557,13 @@ function startFlyingPhase() {
   gamePhase = 'flying';
   currentMultiplier = 1.00;
   
+  // Validate crash point
+  if (!crashPoint || crashPoint <= 1.00) {
+    console.error(`❌ Invalid crash point: ${crashPoint}, forcing crash`);
+    crashRound();
+    return;
+  }
+  
   console.log(`✈️ Starting flying phase for round ${currentRound} with EXACT crash point: ${crashPoint}x`);
   
   // Emit flying phase event to notify clients
@@ -503,43 +577,61 @@ function startFlyingPhase() {
   startTime = Date.now();
   const timeToCrash = estimateTimeToMultiplier(crashPoint);
   
+  // Add safety check for infinite or invalid time
+  if (!timeToCrash || timeToCrash <= 0 || timeToCrash > 300) { // Max 5 minutes
+    console.error(`❌ Invalid time to crash: ${timeToCrash}, forcing crash`);
+    crashRound();
+    return;
+  }
+  
   console.log(`⏱️ Animation duration: ${timeToCrash.toFixed(1)} seconds`);
   
-      // Start multiplier animation with smooth, consistent behavior
-    let lastEmittedMultiplier = 1.00;
+  // Add safety timeout to prevent infinite flying phase
+  const safetyTimeout = setTimeout(() => {
+    console.error(`⚠️ Safety timeout reached for round ${currentRound}, forcing crash`);
+    if (simulationInterval) {
+      clearInterval(simulationInterval);
+      simulationInterval = null;
+    }
+    crashRound();
+  }, Math.min(timeToCrash * 1000 * 1.5, 300000)); // 1.5x the calculated time or 5 minutes max
+  
+  // Start multiplier animation with smooth, consistent behavior
+  let lastEmittedMultiplier = 1.00;
+  
+  simulationInterval = setInterval(() => {
+    // Calculate elapsed time since flying phase started
+    const elapsedMs = Date.now() - startTime;
+    const elapsedSec = elapsedMs / 1000;
     
-    simulationInterval = setInterval(() => {
-      // Calculate elapsed time since flying phase started
-      const elapsedMs = Date.now() - startTime;
-      const elapsedSec = elapsedMs / 1000;
-      
-      // Calculate progress (0 to 1) - NO random variations for smoothness
-      const progress = Math.min(1, elapsedSec / timeToCrash);
-      
-      // Calculate current multiplier
-      currentMultiplier = calculateMultiplier(progress, crashPoint);
-      
-      // Emit smooth progression updates (1.01, 1.02, 1.03, etc.)
-      // Use a smaller threshold to show gradual increments
-      if (Math.abs(currentMultiplier - lastEmittedMultiplier) >= 0.01) {
-        io.emit('multiplier:update', {
-          round: currentRound,
-          multiplier: currentMultiplier
-        });
-        lastEmittedMultiplier = currentMultiplier;
-      }
-      
-      // Debug: Log smooth progression updates
-      if (currentMultiplier >= 1.0) {
-        console.log(`📊 ${currentMultiplier.toFixed(2)}x → ${crashPoint.toFixed(2)}x (${(progress * 100).toFixed(0)}%)`);
-      }
-      
-      // Check if crashed (NO randomness for consistency)
-      if (progress >= 1.0 || currentMultiplier >= crashPoint) {
-        console.log(`🎯 Animation complete: reached ${currentMultiplier}x (target was ${crashPoint}x) at ${(progress * 100).toFixed(1)}% progress`);
-        crashRound();
-      }
-    }, MULTIPLIER_UPDATE_INTERVAL); // Fixed update interval for smoothness
+    // Calculate progress (0 to 1) - NO random variations for smoothness
+    const progress = Math.min(1, elapsedSec / timeToCrash);
+    
+    // Calculate current multiplier
+    currentMultiplier = calculateMultiplier(progress, crashPoint);
+    
+    // Emit smooth progression updates (1.01, 1.02, 1.03, etc.)
+    // Use a smaller threshold to show gradual increments
+    if (Math.abs(currentMultiplier - lastEmittedMultiplier) >= 0.01) {
+      io.emit('multiplier:update', {
+        round: currentRound,
+        multiplier: currentMultiplier
+      });
+      lastEmittedMultiplier = currentMultiplier;
+    }
+    
+    // Debug: Log smooth progression updates
+    if (currentMultiplier >= 1.0) {
+      console.log(`📊 ${currentMultiplier.toFixed(2)}x → ${crashPoint.toFixed(2)}x (${(progress * 100).toFixed(0)}%)`);
+    }
+    
+    // Check if crashed (NO randomness for consistency)
+    if (progress >= 1.0 || currentMultiplier >= crashPoint) {
+      console.log(`🎯 Animation complete: reached ${currentMultiplier}x (target was ${crashPoint}x) at ${(progress * 100).toFixed(1)}% progress`);
+      clearTimeout(safetyTimeout);
+      crashRound();
+    }
+  }, MULTIPLIER_UPDATE_INTERVAL); // Fixed update interval for smoothness
 }
 
 function crashRound() {
