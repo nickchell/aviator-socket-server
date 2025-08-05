@@ -43,6 +43,33 @@ let startTime = null; // Track flying phase start time
 
 // Client-specific state tracking
 const clientStates = new Map(); // socketId -> { currentRound, isSynced }
+const connectionStats = {
+  totalConnections: 0,
+  activeConnections: 0,
+  totalDisconnections: 0,
+  lastConnectionTime: null,
+  lastDisconnectionTime: null
+};
+
+// Connection monitoring
+function logConnectionStats() {
+  const activeCount = io.engine.clientsCount;
+  console.log(`📊 Connection Stats: ${activeCount} active, ${connectionStats.totalConnections} total connections, ${connectionStats.totalDisconnections} disconnections`);
+  
+  // Log client details if there are active connections
+  if (activeCount > 0) {
+    const clientDetails = Array.from(clientStates.entries()).map(([id, state]) => ({
+      id: id.substring(0, 8) + '...',
+      round: state.currentRound,
+      synced: state.isSynced,
+      connectedFor: Math.floor((Date.now() - state.connectedAt) / 1000) + 's'
+    }));
+    console.log(`👥 Active clients:`, clientDetails);
+  }
+}
+
+// Monitor connections every 30 seconds
+setInterval(logConnectionStats, 30000);
 
 // Middleware
 app.use(cors());
@@ -83,6 +110,8 @@ app.get('/ping', (req, res) => {
 app.get('/health', (req, res) => {
   const timeBasedRound = getCurrentRound();
   const roundMultiplier = getMultiplierForRound(currentRound);
+  const activeConnections = io.engine.clientsCount;
+  
   res.json({ 
     status: 'healthy', 
     gamePhase, 
@@ -91,7 +120,20 @@ app.get('/health', (req, res) => {
     roundDifference: currentRound - timeBasedRound,
     queueSize: multiplierQueue.length,
     currentMultiplier: gamePhase === 'flying' ? currentMultiplier : roundMultiplier,
-    nextMultiplier: multiplierQueue.length > 0 ? multiplierQueue[0] : null
+    nextMultiplier: multiplierQueue.length > 0 ? multiplierQueue[0] : null,
+    connections: {
+      active: activeConnections,
+      total: connectionStats.totalConnections,
+      disconnections: connectionStats.totalDisconnections,
+      lastConnection: connectionStats.lastConnectionTime ? new Date(connectionStats.lastConnectionTime).toISOString() : null,
+      lastDisconnection: connectionStats.lastDisconnectionTime ? new Date(connectionStats.lastDisconnectionTime).toISOString() : null
+    },
+    clients: Array.from(clientStates.entries()).map(([id, state]) => ({
+      id: id.substring(0, 8) + '...',
+      round: state.currentRound,
+      synced: state.isSynced,
+      connectedFor: Math.floor((Date.now() - state.connectedAt) / 1000)
+    }))
   });
 });
 
@@ -267,49 +309,115 @@ app.post('/force-start', authenticateRequest, (req, res) => {
 io.on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
   
+  // Update connection stats
+  connectionStats.totalConnections++;
+  connectionStats.activeConnections = io.engine.clientsCount;
+  connectionStats.lastConnectionTime = Date.now();
+  
+  // Initialize client state
+  clientStates.set(socket.id, { 
+    currentRound: currentRound, 
+    isSynced: false,
+    connectedAt: Date.now()
+  });
+  
   // Send current game state to new connection immediately
-  socket.emit('game:state', {
+  const currentState = {
     currentRound,
     gamePhase,
     currentMultiplier: gamePhase === 'flying' ? currentMultiplier : (crashPoint || 1.00),
     crashPoint
-  });
+  };
+  
+  console.log(`📤 Sending initial state to ${socket.id}:`, currentState);
+  socket.emit('game:state', currentState);
   
   // Send current round info
-  socket.emit('round:info', {
+  const roundInfo = {
     round: currentRound,
     phase: gamePhase,
-    multiplier: currentMultiplier,
+    multiplier: gamePhase === 'flying' ? currentMultiplier : (crashPoint || 1.00),
     crashPoint
-  });
+  };
+  
+  console.log(`📤 Sending round info to ${socket.id}:`, roundInfo);
+  socket.emit('round:info', roundInfo);
   
   // If currently in betting phase, send betting info
   if (gamePhase === 'betting') {
-    socket.emit('round:start', {
+    const bettingInfo = {
       round: currentRound,
       crashPoint: crashPoint
-    });
+    };
+    console.log(`📤 Sending betting info to ${socket.id}:`, bettingInfo);
+    socket.emit('round:start', bettingInfo);
   }
   
   // If currently in flying phase, send flying info
   if (gamePhase === 'flying') {
-    socket.emit('round:flying', {
+    const flyingInfo = {
       round: currentRound,
       multiplier: currentMultiplier,
       crashPoint: crashPoint
-    });
+    };
+    console.log(`📤 Sending flying info to ${socket.id}:`, flyingInfo);
+    socket.emit('round:flying', flyingInfo);
   }
   
   // If currently crashed, send crash info
   if (gamePhase === 'crashed') {
-    socket.emit('round:crash', {
+    const crashInfo = {
       round: currentRound,
       crashPoint: crashPoint
-    });
+    };
+    console.log(`📤 Sending crash info to ${socket.id}:`, crashInfo);
+    socket.emit('round:crash', crashInfo);
   }
   
-  socket.on('disconnect', () => {
-    console.log(`🔌 Client disconnected: ${socket.id}`);
+  // Mark client as synced
+  const clientState = clientStates.get(socket.id);
+  if (clientState) {
+    clientState.isSynced = true;
+    clientState.currentRound = currentRound;
+  }
+  
+  // Handle client disconnection
+  socket.on('disconnect', (reason) => {
+    console.log(`🔌 Client disconnected: ${socket.id}, reason: ${reason}`);
+    
+    // Update disconnection stats
+    connectionStats.totalDisconnections++;
+    connectionStats.activeConnections = io.engine.clientsCount;
+    connectionStats.lastDisconnectionTime = Date.now();
+    
+    clientStates.delete(socket.id);
+  });
+  
+  // Handle client errors
+  socket.on('error', (error) => {
+    console.error(`❌ Socket error for ${socket.id}:`, error);
+  });
+  
+  // Handle client requesting current state
+  socket.on('request:state', () => {
+    console.log(`📤 Client ${socket.id} requested current state`);
+    socket.emit('game:state', {
+      currentRound,
+      gamePhase,
+      currentMultiplier: gamePhase === 'flying' ? currentMultiplier : (crashPoint || 1.00),
+      crashPoint
+    });
+  });
+  
+  // Handle client requesting round info
+  socket.on('request:round-info', () => {
+    console.log(`📤 Client ${socket.id} requested round info`);
+    socket.emit('round:info', {
+      round: currentRound,
+      phase: gamePhase,
+      multiplier: gamePhase === 'flying' ? currentMultiplier : (crashPoint || 1.00),
+      crashPoint
+    });
   });
 });
 
@@ -458,7 +566,7 @@ function estimateTimeToMultiplier(target) {
   // All multipliers use the same fixed timing - only the stop point differs
   
   // Fixed animation duration for ALL multipliers (no prediction possible)
-  const FIXED_ANIMATION_DURATION = 8.0; // 8 seconds for all games
+  const FIXED_ANIMATION_DURATION = 12.0; // 12 seconds for all games (increased from 8s)
   
   // Add minimal randomness to prevent exact timing prediction
   const microRandomness = (Math.random() - 0.5) * 0.5; // ±0.25 seconds
@@ -471,13 +579,13 @@ function calculateMultiplier(progress, target) {
   // All multipliers follow the exact same growth pattern - only stop point differs
   
   // Calculate growth rate to ensure we can reach the target at progress = 1.0
-  // We want: target = e^(rate * 8) when progress = 1.0
-  // So: rate = ln(target) / 8
-  const growthRate = Math.log(target) / 8;
+  // We want: target = e^(rate * 12) when progress = 1.0 (increased from 8s)
+  // So: rate = ln(target) / 12
+  const growthRate = Math.log(target) / 12;
   
   // Universal exponential formula: multiplier = e^(rate * time)
   // This creates the same curve shape for 1.2x, 10x, 100x, etc.
-  const universalMultiplier = Math.exp(growthRate * progress * 8); // 8 seconds duration
+  const universalMultiplier = Math.exp(growthRate * progress * 12); // 12 seconds duration
   
   // Convert to stepped hundredths for smooth animation
   const steppedMultiplier = Math.floor(universalMultiplier * 100) / 100;
@@ -515,27 +623,27 @@ function testMultiplierCalculation() {
   // Test progression - all should follow identical curve until they stop
   console.log(`\n📈 Universal Curve Progression (First 3 seconds identical for all):`);
   
-  console.log(`   Early progression (0-3 seconds) - ALL multipliers identical:`);
+  console.log(`   Early progression (0-4 seconds) - ALL multipliers identical:`);
   for (let progress = 0.1; progress <= 0.4; progress += 0.1) {
-    const time = progress * 8; // 8 second duration
+    const time = progress * 12; // 12 second duration
     const universalValue = calculateMultiplier(progress, 1000); // Use high target to see full curve
     console.log(`     ${time.toFixed(1)}s: ${universalValue.toFixed(2)}x (universal curve)`);
   }
   
-  console.log(`   Mid progression (3-6 seconds) - Still identical until crash:`);
+  console.log(`   Mid progression (4-8 seconds) - Still identical until crash:`);
   for (let progress = 0.4; progress <= 0.8; progress += 0.1) {
-    const time = progress * 8;
+    const time = progress * 12;
     const universalValue = calculateMultiplier(progress, 1000);
     console.log(`     ${time.toFixed(1)}s: ${universalValue.toFixed(2)}x (universal curve)`);
   }
   
   console.log(`\n✅ Universal Curve Design Features:`);
-  console.log(`   • Fixed 8-second duration for ALL multipliers (no timing prediction)`);
-  console.log(`   • Dynamic growth rate: ln(target) / 8 for each multiplier`);
-  console.log(`   • Universal formula: multiplier = e^(ln(target)/8 * time) for all games`);
+  console.log(`   • Fixed 12-second duration for ALL multipliers (no timing prediction)`);
+  console.log(`   • Dynamic growth rate: ln(target) / 12 for each multiplier`);
+  console.log(`   • Universal formula: multiplier = e^(ln(target)/12 * time) for all games`);
   console.log(`   • Only difference: where the animation stops (crash point)`);
   console.log(`   • 1.2x crash: stops at 1.2x, 100x crash: stops at 100x`);
-  console.log(`   • First 3-4 seconds look identical for all multipliers`);
+  console.log(`   • First 4-5 seconds look identical for all multipliers`);
   console.log(`   • Impossible to predict crash point from animation behavior`);
   console.log(`   • Stepped hundredths for smooth counter-like display`);
   console.log(`   • Fixed update interval: ${MULTIPLIER_UPDATE_INTERVAL}ms`);
@@ -583,7 +691,7 @@ server.listen(PORT, () => {
   console.log(`🎮 Game phases: betting(${BETTING_PHASE_DURATION}ms) → flying → crashed → wait(${WAIT_PHASE_DURATION}ms)`);
   console.log(`⚡ Update interval: ${MULTIPLIER_UPDATE_INTERVAL}ms`);
   console.log(`🎯 Initial current round: ${currentRound}`);
-  console.log(`🎲 Universal growth curve: 8s fixed duration, same curve for all multipliers`);
+  console.log(`🎲 Universal growth curve: 12s fixed duration, same curve for all multipliers`);
   
   // Test multiplier calculation
   testMultiplierCalculation();
