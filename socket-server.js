@@ -398,6 +398,16 @@ io.on('connection', (socket) => {
     console.error(`❌ Socket error for ${socket.id}:`, error);
   });
   
+  // Handle recent multipliers request
+  socket.on('request:recent-multipliers', () => {
+    console.log(`📤 Sending recent multipliers to ${socket.id}`);
+    const recentMultipliers = Array.from(roundMultipliers.entries())
+      .slice(-10) // Get last 10 multipliers
+      .map(([round, multiplier]) => ({ round, multiplier }));
+    
+    socket.emit('recent:multipliers', { multipliers: recentMultipliers });
+  });
+  
   // Handle client requesting current state
   socket.on('request:state', () => {
     console.log(`📤 Client ${socket.id} requested current state`);
